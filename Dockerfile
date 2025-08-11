@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile para LVAR (Versión Definitiva con Mambaforge - Solución ToS)
+# Dockerfile para LVAR (Versión Definitiva con Snakemake completo)
 # ==============================================================================
 
 # Usar una base de Debian para un mejor control de las dependencias de Perl
@@ -27,18 +27,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- Instalar Mambaforge ---
-# Se utiliza Mambaforge en lugar de Miniconda para evitar los problemas de ToS
-# de los canales por defecto de Anaconda. Mambaforge viene con Mamba preinstalado.
-RUN wget --quiet https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh -O mambaforge.sh && \
+RUN wget --quiet --no-check-certificate https://github.com/conda-forge/miniforge/releases/download/24.1.2-0/Mambaforge-24.1.2-0-Linux-x86_64.sh -O mambaforge.sh && \
     bash mambaforge.sh -b -p /opt/conda && \
     rm mambaforge.sh
 ENV PATH /opt/conda/bin:$PATH
 
-# --- Instalar herramientas bioinformáticas con Mamba ---
-# Ahora podemos usar Mamba directamente. Ya está configurado para usar solo
-# los canales conda-forge y bioconda, evitando el error de ToS.
+# --- Instalar herramientas bioinformáticas con Mamba (CORRECCIÓN APLICADA AQUÍ) ---
+# Se instala el paquete 'snakemake' completo en lugar de 'snakemake-minimal'
+# para asegurar que dependencias como 'pandas' estén incluidas.
 RUN mamba install -n base -c conda-forge -c bioconda -y \
-    snakemake-minimal \
+    snakemake \
     fastqc \
     multiqc \
     fastp \
@@ -50,6 +48,7 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     mamba clean --all -y
 
 # --- Configurar Ensembl VEP con un caché autocontenido ---
+# (Esta sección no necesita cambios)
 ENV VEP_CACHE_DIR /opt/vep_cache
 ENV VEP_SPECIES leishmania_braziliensis_mhomb_br_75_m2904
 ENV VEP_ASSEMBLY ASM244v1

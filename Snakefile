@@ -1,14 +1,20 @@
 # ==============================================================================
-# Snakefile para LVAR: Análisis de Variantes en Leishmania (Versión VEP)
+# Snakefile para LVAR: Analisis de Variantes en Leishmania (Version VEP Final)
+# ==============================================================================
+#
+# Autor: Juanjo (con ayuda de IA)
+# Descripcion: Pipeline para el analisis de WGS desde lecturas crudas
+#              hasta la anotacion de variantes, usando Snakemake y Docker.
+#
 # ==============================================================================
 
 import pandas as pd
 
-# --- Carga de Configuración ---
+# --- Carga de Configuracion ---
 configfile: "config/config.yaml"
 SAMPLES = pd.read_csv(config['samples'], sep='\t').set_index('sample', drop=False)
 
-# --- Rutas y Parámetros Globales (dentro del contenedor) ---
+# --- Rutas y Parametros Globales (dentro del contenedor) ---
 REF_GENOME = "/opt/vep_cache/leishmania_braziliensis_mhomb_br_75_m2904/112_ASM244v1/Leishmania_braziliensis_mhomb_br_75_m2904.ASM244v1.dna.toplevel.fa"
 VEP_CACHE_DIR = "/opt/vep_cache"
 VEP_SPECIES = "leishmania_braziliensis_mhomb_br_75_m2904"
@@ -97,7 +103,7 @@ rule haplotype_caller:
     shell: "gatk --java-options '{params.java_opts}' HaplotypeCaller -R {input.ref} -I {input.bam} -O {output.vcf} > {log} 2>&1"
 
 # ==============================================================================
-# PASO 6: ANOTACIÓN CON VEP
+# PASO 6: ANOTACION CON VEP
 # ==============================================================================
 rule vep_annotate:
     input: vcf="results/variants/{sample}.vcf.gz"
@@ -111,8 +117,12 @@ rule vep_annotate:
         ref_fasta=REF_GENOME
     log: "results/logs/vep/{sample}.log"
     shell:
-        "vep --input_file {input.vcf} --output_file {output.vcf} \\
-            --stats_file {output.stats} --html {output.html} \\
-            --cache --dir_cache {params.cache_dir} --species {params.species} \\
-            --fasta {params.ref_fasta} --offline --vcf --force_overwrite \\
-            > {log} 2>&1"
+        """
+        vep --input_file {input.vcf} --output_file {output.vcf} \
+            --stats_file {output.stats} --html {output.html} \
+            --cache --dir_cache {params.cache_dir} --species {params.species} \
+            --fasta {params.ref_fasta} \
+            --offline \
+            --vcf \
+            --force_overwrite > {log} 2>&1
+        """
