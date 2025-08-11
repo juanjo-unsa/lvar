@@ -87,7 +87,7 @@ if ! [[ "$USER_CORES" =~ ^[0-9]+$ && "$USER_RAM" =~ ^[0-9]+$ ]]; then echo -e "$
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
 echo "Iniciando pipeline 'lvar' con ${USER_CORES} cores y GATK con ${USER_RAM}GB RAM..."
-snakemake --use-docker --cores \${USER_CORES} --config gatk_ram_gb=\${USER_RAM} "\$@"
+snakemake --use-software-stack --cores \${USER_CORES} --config gatk_ram_gb=\${USER_RAM} "\$@"
 EOM
 chmod +x run_pipeline.sh
 echo "   [OK] Script de ejecución './run_pipeline.sh' creado."
