@@ -1,22 +1,39 @@
-# Snakefile para análisis de variantes en Leishmania braziliensis
-# ---------------------------------------------------------------
+# ==============================================================================
+# Snakefile para LVAR: Análisis de Variantes en Leishmania
+# ==============================================================================
+#
+# Autor: Juanjo (con ayuda de IA)
+# Descripción: Pipeline para el análisis de WGS desde lecturas crudas
+#              hasta la anotación de variantes, usando Snakemake y Docker.
+#
+# ==============================================================================
 
 import pandas as pd
 
-# Cargar la configuración y la lista de muestras
+# --- Carga de Configuración ---
+# Carga los parámetros del pipeline desde el archivo YAML generado.
 configfile: "config/config.yaml"
+
+# Carga la lista de muestras desde el archivo TSV generado.
+# Esto hace que el pipeline sea agnóstico al número y nombre de las muestras.
 SAMPLES = pd.read_csv(config['samples'], sep='\t').set_index('sample', drop=False)
 
-# --- REGLA FINAL: DEFINE LOS ARCHIVOS FINALES DESEADOS ---
-# Snakemake intentará generar estos archivos, ejecutando las reglas necesarias.
+# ==============================================================================
+# REGLA FINAL (TARGET)
+# ==============================================================================
+# Esta regla define los archivos finales que queremos que Snakemake genere.
+# Snakemake trabajará hacia atrás desde aquí para ejecutar las reglas necesarias.
 rule all:
     input:
-        # Anotación final para cada muestra
+        # Los VCF anotados para cada muestra.
         expand("results/annotated/{sample}.ann.vcf", sample=SAMPLES.index),
-        # Reporte de calidad agregado
+        # Un reporte de calidad agregado de todas las muestras.
         "results/qc/multiqc_report.html"
 
-# --- PASO 1: Control de calidad con FastQC y MultiQC ---
+# ==============================================================================
+# PASO 1: CONTROL DE CALIDAD (QC)
+# ==============================================================================
+# Ejecuta FastQC sobre las lecturas crudas y MultiQC para agregar los reportes.
 rule fastqc:
     input:
         r1="data/raw_fastq/{sample}_R1.fastq.gz",
@@ -37,7 +54,9 @@ rule fastqc:
 
 rule multiqc:
     input:
-        expand("results/qc/{sample}_{read}_fastqc.zip", sample=SAMPLES.index, read=["R1", "R2"])
+        # Recolecta todos los archivos ZIP de FastQC para el reporte.
+        expand("results/qc/{sample}_R1_fastqc.zip", sample=SAMPLES.index),
+        expand("results/qc/{sample}_R2_fastqc.zip", sample=SAMPLES.index)
     output:
         "results/qc/multiqc_report.html"
     log:
@@ -47,7 +66,10 @@ rule multiqc:
     shell:
         "multiqc results/qc -o results/qc -n multiqc_report.html > {log} 2>&1"
 
-# --- PASO 2: Limpieza de lecturas con fastp ---
+# ==============================================================================
+# PASO 2: LIMPIEZA DE LECTURAS (TRIMMING)
+# ==============================================================================
+# Elimina adaptadores y bases de baja calidad con fastp.
 rule fastp:
     input:
         r1="data/raw_fastq/{sample}_R1.fastq.gz",
@@ -65,11 +87,15 @@ rule fastp:
         "fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} "
         "-h {output.html} --thread {threads} > {log} 2>&1"
 
-# --- PASO 3: Indexar el genoma de referencia para BWA ---
+# ==============================================================================
+# PASO 3: ALINEAMIENTO
+# ==============================================================================
+# Primero, indexa el genoma de referencia para BWA (se ejecuta una sola vez).
 rule bwa_index:
     input:
         config["ref_genome"]
     output:
+        # Se crea un archivo "flag" para indicar que la indexación se completó.
         touch(config["ref_genome"] + ".bwa_indexed")
     log:
         "results/logs/bwa_index.log"
@@ -78,16 +104,18 @@ rule bwa_index:
     shell:
         "bwa index {input} > {log} 2>&1"
 
-# --- PASO 4: Alineamiento con BWA-MEM y ordenamiento con Samtools ---
+# Alinea las lecturas limpias y ordena el BAM resultante.
 rule bwa_mem_sort:
     input:
         r1="results/trimmed/{sample}_R1.fastq.gz",
         r2="results/trimmed/{sample}_R2.fastq.gz",
         ref=config["ref_genome"],
+        # Dependencia explícita en la regla de indexación.
         indexed=config["ref_genome"] + ".bwa_indexed"
     output:
         bam="results/aligned/{sample}.sorted.bam"
     params:
+        # Añadir 'read groups' es una buena práctica y requerido por GATK.
         read_group=r"'@RG\tID:{sample}\tSM:{sample}\tPL:ILLUMINA'"
     log:
         "results/logs/bwa_mem/{sample}.log"
@@ -99,7 +127,10 @@ rule bwa_mem_sort:
         "samtools view -bS - | "
         "samtools sort -o {output.bam} > {log} 2>&1"
 
-# --- PASO 5: Marcar duplicados con GATK ---
+# ==============================================================================
+# PASO 4: PROCESAMIENTO POST-ALINEAMIENTO
+# ==============================================================================
+# Marca duplicados de PCR con GATK.
 rule mark_duplicates:
     input:
         "results/aligned/{sample}.sorted.bam"
@@ -113,7 +144,7 @@ rule mark_duplicates:
     shell:
         "gatk MarkDuplicates -I {input} -O {output.bam} -M {output.metrics} > {log} 2>&1"
 
-# --- PASO 6: Indexar el BAM final ---
+# Indexa el BAM final (deduplicado) para acceso rápido.
 rule samtools_index:
     input:
         "results/aligned/{sample}.dedup.bam"
@@ -126,7 +157,10 @@ rule samtools_index:
     shell:
         "samtools index {input} > {log} 2>&1"
 
-# --- PASO 7: Llamada de variantes con GATK HaplotypeCaller ---
+# ==============================================================================
+# PASO 5: LLAMADA DE VARIANTES
+# ==============================================================================
+# Llama variantes usando GATK HaplotypeCaller.
 rule haplotype_caller:
     input:
         bam="results/aligned/{sample}.dedup.bam",
@@ -134,25 +168,34 @@ rule haplotype_caller:
         ref=config["ref_genome"]
     output:
         vcf="results/variants/{sample}.vcf.gz"
+    params:
+        # Configura la memoria RAM para la JVM de GATK.
+        # Usa el valor pasado desde la línea de comando (por run_pipeline.sh).
+        # Si no se pasa, usa un valor seguro por defecto de 4GB.
+        java_opts=f"-Xmx{config.get('gatk_ram_gb', 4)}g"
     log:
         "results/logs/haplotype_caller/{sample}.log"
     container:
         "docker://broadinstitute/gatk:4.2.6.1"
     shell:
-        "gatk HaplotypeCaller -R {input.ref} -I {input.bam} -O {output.vcf} > {log} 2>&1"
+        "gatk --java-options '{params.java_opts}' HaplotypeCaller "
+        "-R {input.ref} "
+        "-I {input.bam} "
+        "-O {output.vcf} > {log} 2>&1"
 
-# --- PASO 8: Anotación de variantes con SnpEff ---
-# ¡ATENCIÓN! Este paso requiere que tengas una base de datos de SnpEff para L. braziliensis.
-# Consulta la documentación de SnpEff para crearla a partir de un archivo GFF y el FASTA de referencia.
-# Comando general: java -jar snpEff.jar build -gff3 -v <nombre_db>
+# ==============================================================================
+# PASO 6: ANOTACIÓN DE VARIANTES
+# ==============================================================================
+# Anota el VCF con SnpEff para predecir el impacto de las variantes.
 rule snpeff_annotate:
     input:
         vcf="results/variants/{sample}.vcf.gz",
-        ref=config["ref_genome"] # solo como dependencia
+        ref=config["ref_genome"]
     output:
         vcf="results/annotated/{sample}.ann.vcf",
         html="results/annotated/{sample}.snpeff.html"
     params:
+        # El nombre de la base de datos se lee desde el config.yaml.
         db=config["snpeff"]["database"]
     log:
         "results/logs/snpeff/{sample}.log"
