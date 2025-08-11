@@ -2,7 +2,7 @@
 [![Snakemake](https://img.shields.io/badge/snakemake-≥7.0-brightgreen.svg)](https://snakemake.readthedocs.io)
 [![Docker](https://img.shields.io/badge/docker-engine-blue.svg)](https://www.docker.com/)
 
-**LVAR** es un pipeline bioinformático para la identificación de variantes genéticas (SNPs e Indels) a partir de datos de secuenciación de genoma completo (WGS) de *Leishmania braziliensis*. Está diseñado específicamente para comparar aislados con diferentes fenotipos, como la susceptibilidad y resistencia a tratamientos farmacológicos.
+**LVAR** es un pipeline bioinformático para la identificación de variantes genéticas (SNPs e Indels) a partir de datos de secuenciación de genoma completo (WGS) de *Leishmania braziliensis*. Está diseñado específicamente para comparar aislados con diferentes fenotipos.
 
 El pipeline está construido con **Snakemake** para la gestión del flujo de trabajo y utiliza **Docker** para encapsular cada herramienta bioinformática, garantizando una ejecución idéntica en cualquier sistema Linux.
 
