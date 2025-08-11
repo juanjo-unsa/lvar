@@ -1,40 +1,15 @@
 # ==============================================================================
-# Dockerfile para LVAR (Versión Definitiva con Snakemake completo)
+# Dockerfile para LVAR (Versión Definitiva y Robusta con SnpEff)
 # ==============================================================================
 
-# Usar una base de Debian para un mejor control de las dependencias de Perl
-FROM debian:bullseye-slim
+# Usar Mambaforge para evitar problemas de ToS de Conda
+FROM condaforge/mambaforge:latest
 
 # --- Metadata ---
 LABEL maintainer="Juanjo <tu.email@ejemplo.com>"
-LABEL description="Entorno completo para el pipeline LVAR con Ensembl VEP."
+LABEL description="Entorno completo para el pipeline LVAR con SnpEff."
 
-# --- Instalar dependencias del sistema ---
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    git \
-    wget \
-    unzip \
-    zlib1g-dev \
-    libbz2-dev \
-    liblzma-dev \
-    libdbi-perl \
-    libdbd-mysql-perl \
-    perl \
-    cpanminus \
-    procps \
-    ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# --- Instalar Mambaforge ---
-RUN wget --quiet --no-check-certificate https://github.com/conda-forge/miniforge/releases/download/24.1.2-0/Mambaforge-24.1.2-0-Linux-x86_64.sh -O mambaforge.sh && \
-    bash mambaforge.sh -b -p /opt/conda && \
-    rm mambaforge.sh
-ENV PATH /opt/conda/bin:$PATH
-
-# --- Instalar herramientas bioinformáticas con Mamba (CORRECCIÓN APLICADA AQUÍ) ---
-# Se instala el paquete 'snakemake' completo en lugar de 'snakemake-minimal'
-# para asegurar que dependencias como 'pandas' estén incluidas.
+# --- Instalar herramientas bioinformáticas con Mamba ---
 RUN mamba install -n base -c conda-forge -c bioconda -y \
     snakemake \
     fastqc \
@@ -43,25 +18,24 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     bwa \
     samtools \
     gatk4 \
-    htslib \
-    ensembl-vep && \
+    snpeff \
+    wget && \
     mamba clean --all -y
 
-# --- Configurar Ensembl VEP con un caché autocontenido ---
-# (Esta sección no necesita cambios)
-ENV VEP_CACHE_DIR /opt/vep_cache
-ENV VEP_SPECIES leishmania_braziliensis_mhomb_br_75_m2904
-ENV VEP_ASSEMBLY ASM244v1
-ENV VEP_VERSION 112
-ENV VEP_FULL_VERSION ${VEP_VERSION}_${VEP_ASSEMBLY}
+# --- Configurar SnpEff y el Genoma de Referencia ---
+# Usamos la base de datos de referencia principal para L. braziliensis.
+ENV SNPEFF_DB LbraziliensisMHOMBR75M2904
+# Ruta donde guardaremos el genoma dentro del contenedor
+ENV GENOME_PATH "/opt/db/genome.fasta"
 
-RUN mkdir -p ${VEP_CACHE_DIR} && \
-    wget -P ${VEP_CACHE_DIR} https://ftp.ensemblgenomes.ebi.ac.uk/pub/protists/release-58/fasta/leishmania_braziliensis_mhomb_br_75_m2904/dna/Leishmania_braziliensis_mhomb_br_75_m2904.ASM244v1.dna.toplevel.fa.gz && \
-    wget -P ${VEP_CACHE_DIR} https://ftp.ensemblgenomes.ebi.ac.uk/pub/protists/release-58/gff3/leishmania_braziliensis_mhomb_br_75_m2904/Leishmania_braziliensis_mhomb_br_75_m2904.ASM244v1.58.gff3.gz && \
-    gunzip ${VEP_CACHE_DIR}/*.gz && \
-    vep_install --AUTO c --SPECIES ${VEP_SPECIES} --ASSEMBLY ${VEP_ASSEMBLY} \
-        --CACHEDIR ${VEP_CACHE_DIR} --NO_UPDATE --QUIET && \
-    samtools faidx ${VEP_CACHE_DIR}/${VEP_SPECIES}/${VEP_FULL_VERSION}/Leishmania_braziliensis_mhomb_br_75_m2904.ASM244v1.dna.toplevel.fa
+RUN mkdir -p /opt/db && \
+    # Descargar la base de datos de SnpEff. El flag -v fuerza la búsqueda web.
+    snpEff download -v ${SNPEFF_DB} && \
+    # Extraer la ruta al FASTA desde la configuración de SnpEff para asegurar coherencia
+    # y descargarlo a nuestra ubicación estándar.
+    GENOME_URL=$(grep "${SNPEFF_DB}.genome" $(find /opt/conda/share -name snpEff.config) | cut -d'=' -f2 | tr -d '[:space:]') && \
+    wget -O ${GENOME_PATH}.gz "https://initial-pre-sept-2023.s3.eu-west-1.amazonaws.com/downloads.sourceforge.net/project/snpeff/databases/v5_1/${GENOME_URL}" && \
+    gunzip ${GENOME_PATH}.gz
 
 # --- Configurar el entorno de trabajo ---
 WORKDIR /pipeline

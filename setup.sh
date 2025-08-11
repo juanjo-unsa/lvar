@@ -1,69 +1,49 @@
 #!/bin/bash
 # =============================================================================
-# LVAR Project Setup Script (setup.sh)
-#
-# Este script configura el entorno local para ejecutar el pipeline LVAR.
-# Debe ejecutarse DESPUÉS de clonar el repositorio.
-#
-# Uso:
-#   git clone https://github.com/juanjo-unsa/lvar.git
-#   cd lvar
-#   chmod +x setup.sh
-#   ./setup.sh
+# LVAR Project Setup Script (setup.sh) - Versión SnpEff
 # =============================================================================
 
 # --- Configuración y Colores ---
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
-DOCKER_IMAGE_TAG="lvar-vep-pipeline:latest"
+DOCKER_IMAGE_TAG="lvar-snpeff-pipeline:latest"
 
 echo -e "${GREEN}--- Iniciando la Configuración del Proyecto LVAR ---${NC}"
 
-# --- PASO 1: Verificar que estamos en el directorio correcto ---
-if [ ! -f "Dockerfile" ] || [ ! -f "Snakefile" ]; then
-    echo -e "${RED}[ERROR] No se encuentran 'Dockerfile' o 'Snakefile'.${NC}"
-    echo -e "${YELLOW}Por favor, asegúrate de ejecutar este script desde la raíz del repositorio 'lvar' clonado.${NC}"
-    exit 1
-fi
-
-# --- PASO 2: Verificar Dependencia (Docker) ---
+# --- PASO 1: Verificar Docker ---
 echo -e "\n${GREEN}1. Verificando la presencia de Docker...${NC}"
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}[ERROR] Docker no está instalado.${NC}";
-    echo -e "${YELLOW}Por favor, instala Docker y asegúrate de que el servicio esté en ejecución.${NC}";
-    exit 1;
-fi
+if ! command -v docker &> /dev/null; then echo -e "${RED}ERROR: Docker no instalado.${NC}"; exit 1; fi
 echo "   [OK] Docker está instalado."
 
-# --- PASO 3: Construir la Imagen de Docker ---
+# --- PASO 2: Construir la Imagen de Docker ---
 echo -e "\n${GREEN}2. Construyendo la imagen de Docker del pipeline...${NC}"
-echo -e "${YELLOW}Este es el paso más largo y puede tardar más de 30 minutos.${NC}"
-echo -e "${YELLOW}Descargará e instalará todas las herramientas y el genoma de referencia.${NC}"
+echo -e "${YELLOW}Este paso puede tardar varios minutos. Descargará herramientas y la base de datos de SnpEff.${NC}"
 if docker build -t "$DOCKER_IMAGE_TAG" .; then
     echo -e "   ${GREEN}[OK] Imagen Docker '$DOCKER_IMAGE_TAG' construida con éxito.${NC}"
 else
-    echo -e "${RED}[ERROR] Falló la construcción de la imagen de Docker. Revisa los mensajes de error.${NC}"; exit 1
+    echo -e "${RED}[ERROR] Falló la construcción de la imagen. Revisa los mensajes de error.${NC}"; exit 1
 fi
 
-# --- PASO 4: Crear Estructura de Directorios Local ---
-echo -e "\n${GREEN}3. Creando la estructura de directorios para datos y resultados...${NC}"
+# --- PASO 3: Crear Estructura de Directorios Local ---
+echo -e "\n${GREEN}3. Creando la estructura de directorios...${NC}"
 mkdir -p config data/raw_fastq results/{qc,trimmed,aligned,variants,annotated,logs}
 echo "   [OK] Estructura de directorios creada."
 
-# --- PASO 5: Configuración Interactiva ---
-echo -e "\n${GREEN}4. Configurando las muestras y parámetros del pipeline...${NC}"
+# --- PASO 4: Configuración Interactiva de Muestras ---
+echo -e "\n${GREEN}4. Configurando las muestras...${NC}"
 declare -a SAMPLES_ARRAY
 echo -e "${YELLOW}Ingresa los nombres de tus muestras (prefijos de los archivos FASTQ). Presiona Enter para terminar.${NC}"
 while true; do read -p "Nombre de muestra: " sample_name; [ -z "$sample_name" ] && break; SAMPLES_ARRAY+=("$sample_name"); done
 if [ ${#SAMPLES_ARRAY[@]} -eq 0 ]; then echo -e "${RED}No se ingresaron muestras. Abortando.${NC}"; exit 1; fi
 
 echo "sample" > config/samples.tsv; for s in "${SAMPLES_ARRAY[@]}"; do echo "$s" >> config/samples.tsv; done
+# El config.yaml ya no necesita nada, pero lo creamos por si se añaden opciones en el futuro.
 cat > config/config.yaml <<- EOM
 # Archivo de configuración generado por setup.sh
 samples: "config/samples.tsv"
 EOM
-echo "   [OK] Archivos 'config/samples.tsv' y 'config/config.yaml' generados."
+echo "   [OK] Archivos de configuración generados."
 
-# --- PASO 6: Generar Script de Ejecución ---
+# --- PASO 5: Generar Script de Ejecución ---
 echo -e "\n${GREEN}5. Creando script de ejecución personalizado...${NC}"
 CORES_TOTAL=$(nproc 2>/dev/null || echo 8)
 RAM_SUGGESTED=$(( $(free -g | awk '/^Mem:/{print $2}' 2>/dev/null || echo 16) * 80 / 100 ))
@@ -71,8 +51,6 @@ read -p "Número de cores a usar [Sugerido: $CORES_TOTAL]: " USER_CORES; USER_CO
 read -p "RAM para GATK (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=${USER_RAM:-$RAM_SUGGESTED}
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
-# Lanza el pipeline LVAR dentro de su contenedor Docker.
-
 echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK con ${USER_RAM}GB RAM..."
 docker run --rm -it \\
     -v "\$(pwd)/config:/pipeline/config" \\
@@ -87,24 +65,19 @@ EOM
 chmod +x run_pipeline.sh
 echo "   [OK] Script de ejecución './run_pipeline.sh' creado."
 
-# --- PASO 7: Organizar Archivos de Datos ---
+# --- PASO 6: Organizar Archivos FASTQ ---
 echo -e "\n${GREEN}6. Organizando los archivos de datos FASTQ...${NC}"
-echo -e "${YELLOW}¡IMPORTANTE! Este pipeline utiliza un genoma de referencia estándar (ASM244v1) que ya está incluido en la imagen de Docker.${NC}"
-echo "Solo necesitas proporcionar tus archivos de lecturas FASTQ."
 read -e -p "Proporciona la RUTA ABSOLUTA a la carpeta con tus archivos .fastq.gz: " SOURCE_DIR
 if [ -d "$SOURCE_DIR" ]; then
-    echo "   Copiando archivos..."
     for s in "${SAMPLES_ARRAY[@]}"; do
         cp "$SOURCE_DIR/${s}_R1.fastq.gz" "data/raw_fastq/" 2>/dev/null || echo -e "${RED}-> No se pudo copiar ${s}_R1.fastq.gz${NC}"
         cp "$SOURCE_DIR/${s}_R2.fastq.gz" "data/raw_fastq/" 2>/dev/null || echo -e "${RED}-> No se pudo copiar ${s}_R2.fastq.gz${NC}"
     done
-    echo "   [OK] Intento de copia finalizado. Por favor, verifica que tus archivos están en 'data/raw_fastq/'."
 else
-    echo -e "${RED}Directorio no encontrado. Deberás mover los archivos FASTQ manualmente a 'data/raw_fastq/'.${NC}"
+    echo -e "${RED}Directorio no encontrado. Deberás mover los archivos FASTQ manualmente.${NC}"
 fi
 
 # --- Conclusión ---
 echo -e "\n${GREEN}¡CONFIGURACIÓN COMPLETADA!${NC}"
-echo "El proyecto LVAR ha sido configurado en el directorio actual."
-echo "Para ejecutar el análisis, usa el script que hemos creado:"
+echo "Para ejecutar el análisis, usa el script:"
 echo -e "${GREEN}./run_pipeline.sh${NC}"
