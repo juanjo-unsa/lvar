@@ -36,12 +36,11 @@ Antes de comenzar, asegúrate de tener instalados los siguientes programas en tu
     ```bash
     conda install -c bioconda snakemake
     ```
-
 ---
 
 ## Guía de Inicio Rápido
 
-Sigue estos pasos para poner en marcha el proyecto:
+El único requisito de software en tu sistema es **Git** y **Docker**.
 
 ### 1. Clonar el Repositorio
 
