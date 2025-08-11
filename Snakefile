@@ -2,7 +2,7 @@
 # Snakefile para LVAR: Análisis de Variantes en Leishmania
 # ==============================================================================
 #
-# Autor: Juanjo (con ayuda de IA)
+# Autor: Juanjo
 # Descripción: Pipeline para el análisis de WGS desde lecturas crudas
 #              hasta la anotación de variantes, usando Snakemake y Docker.
 #
@@ -47,8 +47,6 @@ rule fastqc:
         outdir="results/qc"
     log:
         "results/logs/fastqc/{sample}.log"
-    container:
-        "docker://staphb/fastqc:latest"
     shell:
         "fastqc {input.r1} {input.r2} -o {params.outdir} > {log} 2>&1"
 
@@ -61,8 +59,6 @@ rule multiqc:
         "results/qc/multiqc_report.html"
     log:
         "results/logs/multiqc.log"
-    container:
-        "docker://ewels/multiqc:latest"
     shell:
         "multiqc results/qc -o results/qc -n multiqc_report.html > {log} 2>&1"
 
@@ -81,8 +77,6 @@ rule fastp:
     log:
         "results/logs/fastp/{sample}.log"
     threads: 8
-    container:
-        "docker://quay.io/biocontainers/fastp:0.23.2--h79da9fb_0"
     shell:
         "fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} "
         "-h {output.html} --thread {threads} > {log} 2>&1"
@@ -99,8 +93,6 @@ rule bwa_index:
         touch(config["ref_genome"] + ".bwa_indexed")
     log:
         "results/logs/bwa_index.log"
-    container:
-        "docker://biocontainers/bwa:v0.7.17_cv1"
     shell:
         "bwa index {input} > {log} 2>&1"
 
@@ -120,8 +112,6 @@ rule bwa_mem_sort:
     log:
         "results/logs/bwa_mem/{sample}.log"
     threads: 8
-    container:
-        "docker://biocontainers/bwa:v0.7.17_cv1"
     shell:
         "bwa mem -t {threads} -R {params.read_group} {input.ref} {input.r1} {input.r2} | "
         "samtools view -bS - | "
@@ -139,8 +129,6 @@ rule mark_duplicates:
         metrics="results/aligned/{sample}.dedup.metrics"
     log:
         "results/logs/mark_duplicates/{sample}.log"
-    container:
-        "docker://broadinstitute/gatk:4.2.6.1"
     shell:
         "gatk MarkDuplicates -I {input} -O {output.bam} -M {output.metrics} > {log} 2>&1"
 
@@ -152,8 +140,6 @@ rule samtools_index:
         "results/aligned/{sample}.dedup.bam.bai"
     log:
         "results/logs/samtools_index/{sample}.log"
-    container:
-        "docker://biocontainers/samtools:v1.9-4-deb_cv1"
     shell:
         "samtools index {input} > {log} 2>&1"
 
@@ -175,8 +161,6 @@ rule haplotype_caller:
         java_opts=f"-Xmx{config.get('gatk_ram_gb', 4)}g"
     log:
         "results/logs/haplotype_caller/{sample}.log"
-    container:
-        "docker://broadinstitute/gatk:4.2.6.1"
     shell:
         "gatk --java-options '{params.java_opts}' HaplotypeCaller "
         "-R {input.ref} "
@@ -199,8 +183,6 @@ rule snpeff_annotate:
         db=config["snpeff"]["database"]
     log:
         "results/logs/snpeff/{sample}.log"
-    container:
-        "docker://snpeff/snpeff:5.1d-1"
     shell:
         "snpEff ann -v {params.db} {input.vcf} > {output.vcf} "
         "-stats {output.html} 2> {log}"
