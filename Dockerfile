@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile para LVAR (Versión Final - Construcción Manual de SnpEff - URLs Verificadas por el Usuario)
+# Dockerfile para LVAR (Versión Final - Construcción Completa y Verificada de SnpEff)
 # ==============================================================================
 
 # Usar Mambaforge para evitar problemas de ToS de Conda y tener Mamba por defecto
@@ -23,12 +23,16 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     mamba clean --all -y
 
 # --- Configuración Manual de SnpEff y el Genoma de Referencia ---
-# Este es el método más robusto: descargamos los archivos y construimos la DB.
+# Este es el método más robusto: descargamos TODOS los archivos y construimos la DB.
 
 # Variables para las URLs (PROPORCIONADAS Y VERIFICADAS) y nombres
 ENV DB_NAME "Lbraziliensis_2019_manual"
-ENV FASTA_URL "https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta"
-ENV GFF_URL "https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff"
+ENV BASE_URL "https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019"
+ENV GFF_URL "${BASE_URL}/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff"
+ENV FASTA_URL "${BASE_URL}/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta"
+ENV CDS_URL "${BASE_URL}/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_AnnotatedCDSs.fasta"
+ENV PROTEIN_URL "${BASE_URL}/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_AnnotatedProteins.fasta"
+
 # Ruta al directorio de datos de SnpEff dentro del contenedor
 ENV SNPEFF_DATA_DIR "/opt/conda/share/snpeff-5.2-1/data"
 # Ruta donde guardaremos nuestro genoma para el alineamiento
@@ -36,17 +40,18 @@ ENV GENOME_PATH "/opt/db/genome.fasta"
 
 RUN mkdir -p ${SNPEFF_DATA_DIR}/${DB_NAME} && \
     mkdir -p /opt/db && \
-    # Descargar el genoma y la anotación usando las URLs correctas
-    # Los archivos no están comprimidos, por lo que no se usa .gz
+    # Descargar los 4 archivos necesarios
     wget -O ${SNPEFF_DATA_DIR}/${DB_NAME}/genes.gff "${GFF_URL}" && \
     wget -O ${GENOME_PATH} "${FASTA_URL}" && \
-    # Copiar el genoma a la carpeta de SnpEff para que lo encuentre
+    wget -O ${SNPEFF_DATA_DIR}/${DB_NAME}/cds.fa "${CDS_URL}" && \
+    wget -O ${SNPEFF_DATA_DIR}/${DB_NAME}/protein.fa "${PROTEIN_URL}" && \
+    # Copiar el genoma a la carpeta de SnpEff con el nombre que espera
     cp ${GENOME_PATH} ${SNPEFF_DATA_DIR}/${DB_NAME}/sequences.fa && \
     # Añadir la configuración de nuestra base de datos manual al snpEff.config
     echo "" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
     echo "# Manual database for L. braziliensis 2019 from TriTrypDB" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
     echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
-    # Construir la base de datos binaria de SnpEff. SnpEff espera que el archivo se llame genes.gff
+    # Construir la base de datos binaria de SnpEff. Ya no se necesita -noCheck.
     snpEff build -gff3 -v ${DB_NAME}
 
 # --- Configurar el entorno de trabajo ---
