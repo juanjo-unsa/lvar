@@ -10,13 +10,14 @@ DOCKER_IMAGE_TAG="lvar-snpeff-pipeline:latest"
 echo -e "${GREEN}--- Iniciando la Configuración del Proyecto LVAR ---${NC}"
 
 # --- PASO 1: Verificar Docker ---
+if [ ! -f "Dockerfile" ] || [ ! -f "Snakefile" ]; then echo -e "${RED}ERROR: 'Dockerfile' o 'Snakefile' no encontrados. Ejecuta desde la raíz del repo.${NC}"; exit 1; fi
 echo -e "\n${GREEN}1. Verificando la presencia de Docker...${NC}"
 if ! command -v docker &> /dev/null; then echo -e "${RED}ERROR: Docker no instalado.${NC}"; exit 1; fi
 echo "   [OK] Docker está instalado."
 
 # --- PASO 2: Construir la Imagen de Docker ---
 echo -e "\n${GREEN}2. Construyendo la imagen de Docker del pipeline...${NC}"
-echo -e "${YELLOW}Este paso puede tardar varios minutos. Descargará herramientas y la base de datos de SnpEff.${NC}"
+echo -e "${YELLOW}Este paso puede tardar varios minutos.${NC}"
 if docker build -t "$DOCKER_IMAGE_TAG" .; then
     echo -e "   ${GREEN}[OK] Imagen Docker '$DOCKER_IMAGE_TAG' construida con éxito.${NC}"
 else
@@ -34,16 +35,13 @@ declare -a SAMPLES_ARRAY
 echo -e "${YELLOW}Ingresa los nombres de tus muestras (prefijos de los archivos FASTQ). Presiona Enter para terminar.${NC}"
 while true; do read -p "Nombre de muestra: " sample_name; [ -z "$sample_name" ] && break; SAMPLES_ARRAY+=("$sample_name"); done
 if [ ${#SAMPLES_ARRAY[@]} -eq 0 ]; then echo -e "${RED}No se ingresaron muestras. Abortando.${NC}"; exit 1; fi
-
 echo "sample" > config/samples.tsv; for s in "${SAMPLES_ARRAY[@]}"; do echo "$s" >> config/samples.tsv; done
-# El config.yaml ya no necesita nada, pero lo creamos por si se añaden opciones en el futuro.
 cat > config/config.yaml <<- EOM
-# Archivo de configuración generado por setup.sh
 samples: "config/samples.tsv"
 EOM
 echo "   [OK] Archivos de configuración generados."
 
-# --- PASO 5: Generar Script de Ejecución ---
+# --- PASO 5: Generar Script de Ejecución (CORREGIDO) ---
 echo -e "\n${GREEN}5. Creando script de ejecución personalizado...${NC}"
 CORES_TOTAL=$(nproc 2>/dev/null || echo 8)
 RAM_SUGGESTED=$(( $(free -g | awk '/^Mem:/{print $2}' 2>/dev/null || echo 16) * 80 / 100 ))
@@ -58,14 +56,15 @@ docker run --rm -it \\
     -v "\$(pwd)/results:/pipeline/results" \\
     -v "\$(pwd)/Snakefile:/pipeline/Snakefile" \\
     "${DOCKER_IMAGE_TAG}" \\
-    --cores \${USER_CORES} \\
-    --config gatk_ram_gb=\${USER_RAM} \\
+    --cores ${USER_CORES} \\
+    --config gatk_ram_gb=${USER_RAM} \\
     "\$@"
 EOM
 chmod +x run_pipeline.sh
 echo "   [OK] Script de ejecución './run_pipeline.sh' creado."
 
 # --- PASO 6: Organizar Archivos FASTQ ---
+# ... (sin cambios)
 echo -e "\n${GREEN}6. Organizando los archivos de datos FASTQ...${NC}"
 read -e -p "Proporciona la RUTA ABSOLUTA a la carpeta con tus archivos .fastq.gz: " SOURCE_DIR
 if [ -d "$SOURCE_DIR" ]; then
