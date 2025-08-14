@@ -1,5 +1,11 @@
 # ==============================================================================
-# Snakefile para LVAR (Versión Final y Verificada)
+# Snakefile para LVAR: Analisis de Variantes en Leishmania
+# ==============================================================================
+#
+# Autor: Juanjo (con ayuda de IA)
+# Descripcion: Pipeline para el analisis de WGS desde lecturas crudas
+#              hasta la anotacion de variantes, usando Snakemake y Docker.
+#
 # ==============================================================================
 
 import pandas as pd
@@ -93,7 +99,7 @@ rule haplotype_caller:
         bai="results/aligned/{sample}.dedup.bam.bai",
         ref=REF_GENOME
     output:
-        vcf="results/variants/{sample}.vcf.gz"  # <-- VERIFICA ESTE PATH
+        vcf="results/variants/{sample}.vcf.gz"
     params:
         java_opts=f"-Xmx{config.get('gatk_ram_gb', 4)}g"
     log: "results/logs/haplotype_caller/{sample}.log"
@@ -104,7 +110,7 @@ rule haplotype_caller:
 # ==============================================================================
 rule snpeff_annotate:
     input:
-        vcf="results/variants/{sample}.vcf.gz"  # <-- VERIFICA QUE ESTE PATH SEA IDÉNTICO AL ANTERIOR
+        vcf="results/variants/{sample}.vcf.gz"
     output:
         vcf="results/annotated/{sample}.ann.vcf",
         html="results/annotated/{sample}.snpeff.html"
