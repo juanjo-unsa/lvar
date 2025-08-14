@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile para LVAR (Versión Definitiva y Pragmática con SnpEff)
+# Dockerfile para LVAR (Versión Final Definitiva - Flags SnpEff Corregidos)
 # ==============================================================================
 
 # Usar Mambaforge para evitar problemas de ToS de Conda y tener Mamba por defecto
@@ -23,8 +23,8 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     mamba clean --all -y
 
 # --- Configuración Manual de SnpEff y el Genoma de Referencia ---
-# Descargamos el Genoma y el GFF, y construimos la DB con -noCheck,
-# que es la solución robusta para las inconsistencias en las anotaciones de TriTrypDB.
+# Descargamos el Genoma y el GFF, y construimos la DB con los flags correctos
+# para omitir las comprobaciones de sanidad.
 
 # Variables para las URLs (VERIFICADAS) y nombres
 ENV DB_NAME "Lbraziliensis_2019_manual"
@@ -47,8 +47,8 @@ RUN mkdir -p ${SNPEFF_DATA_DIR}/${DB_NAME} && \
     echo "" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
     echo "# Manual database for L. braziliensis 2019 from TriTrypDB" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
     echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
-    # Construir la base de datos, DESACTIVANDO las comprobaciones estrictas
-    snpEff build -gff3 -v ${DB_NAME} -noCheck
+    # Construir la base de datos, usando los flags correctos para esta versión de SnpEff
+    snpEff build -gff3 -v ${DB_NAME} -noCheckCds -noCheckProtein
 
 # --- Configurar el entorno de trabajo ---
 WORKDIR /pipeline
