@@ -1,50 +1,61 @@
 # LVAR: Análisis de Variantes en Leishmania
-[![Snakemake](https://img.shields.io/badge/snakemake-≥7.0-brightgreen.svg)](https://snakemake.readthedocs.io)
+[![Snakemake](https://img.shields.io/badge/snakemake-core-brightgreen.svg)](https://snakemake.readthedocs.io)
 [![Docker](https://img.shields.io/badge/docker-engine-blue.svg)](https://www.docker.com/)
 
-**LVAR** es un pipeline bioinformático para la identificación de variantes genéticas (SNPs e Indels) a partir de datos de secuenciación de genoma completo (WGS) de *Leishmania braziliensis*. Está diseñado específicamente para comparar aislados con diferentes fenotipos.
+**LVAR** es un pipeline bioinformático robusto y reproducible para la identificación de variantes genéticas (SNPs e Indels) a partir de datos de secuenciación de genoma completo (WGS) de *Leishmania braziliensis*. Está diseñado para comparar aislados con diferentes fenotipos, como la susceptibilidad y resistencia a tratamientos farmacológicos.
 
-El pipeline está construido con **Snakemake** para la gestión del flujo de trabajo y utiliza **Docker** para encapsular cada herramienta bioinformática, garantizando una ejecución idéntica en cualquier sistema Linux.
+Este proyecto está construido con un enfoque de **máxima reproducibilidad y facilidad de uso**. Todo el software, dependencias, genoma de referencia y bases de datos de anotación están encapsulados en una **única imagen de Docker**, eliminando la necesidad de instalar cualquier herramienta bioinformática en el sistema del usuario.
 
 ---
 
-## Características Principales
+## Arquitectura y Reproducibilidad
 
--   **Reproducibilidad Total**: Gracias a Snakemake y Docker, los resultados son consistentes en cualquier máquina.
--   **Instalación Sencilla**: Un único script (`install.sh`) configura el entorno, verifica dependencias y prepara el proyecto.
--   **Configuración de Recursos**: El script de instalación te permite adaptar el uso de CPU (cores) y RAM a los recursos de tu servidor.
--   **Análisis Completo**: El pipeline abarca desde el control de calidad de las lecturas crudas hasta la anotación funcional de las variantes.
+La filosofía de este pipeline es simple: el único requisito para el usuario es tener **Git** y **Docker**.
 
-## Flujo de Trabajo del Pipeline (Workflow)
+El `Dockerfile` del proyecto se encarga de:
+1.  Instalar un entorno Conda basado en Mambaforge para evitar problemas de compatibilidad.
+2.  Instalar todas las herramientas necesarias (`Snakemake`, `BWA`, `GATK4`, `SnpEff`, etc.).
+3.  Descargar los archivos de referencia (genoma FASTA y anotación GFF) directamente desde una fuente fiable (TriTrypDB).
+4.  Construir una base de datos de SnpEff a medida para asegurar una coherencia del 100% entre el alineamiento y la anotación.
 
-1.  **Control de Calidad (QC)**: Se evalúa la calidad de las lecturas FASTQ crudas usando `FastQC` y se genera un reporte agregado con `MultiQC`.
-2.  **Limpieza de Lecturas (Trimming)**: Se eliminan adaptadores y bases de baja calidad con `fastp`.
-3.  **Alineamiento**: Las lecturas limpias se alinean contra un genoma de referencia de *L. braziliensis* usando `BWA-MEM`.
-4.  **Post-procesamiento de BAM**: Los alineamientos se ordenan, y los duplicados de PCR se marcan con `Samtools` y `GATK MarkDuplicates`.
-5.  **Llamada de Variantes (Variant Calling)**: Se identifican SNPs e Indels para cada muestra individualmente usando `GATK HaplotypeCaller`.
-6.  **Anotación de Variantes**: Se predice el impacto funcional de las variantes (ej. missense, frameshift, stop-gained) con `SnpEff`.
+Esto garantiza que cualquier persona, en cualquier máquina con Docker, obtendrá exactamente los mismos resultados a partir de los mismos datos de entrada.
+
+## Flujo de Trabajo del Pipeline
+
+1.  **Control de Calidad (QC)**: `FastQC` y `MultiQC` para evaluar las lecturas crudas.
+2.  **Limpieza de Lecturas (Trimming)**: `fastp` para eliminar adaptadores y bases de baja calidad.
+3.  **Alineamiento**: `BWA-MEM` contra el genoma de referencia de *L. braziliensis* (cepa MHOM/BR/75/M2904, ensamblaje de 2019).
+4.  **Post-procesamiento de BAM**: `GATK MarkDuplicates` y `Samtools` para ordenar e indexar.
+5.  **Llamada de Variantes**: `GATK HaplotypeCaller` para identificar SNPs e Indels.
+6.  **Anotación de Variantes**: `SnpEff` para predecir el impacto funcional de las variantes.
+
 ---
 
 ## Requisitos Previos
 
-Antes de comenzar, asegúrate de tener instalados los siguientes programas en tu sistema Linux:
+Solo necesitas tener instalados dos programas en tu sistema Linux:
 
 -   **Git**: Para clonar el repositorio.
--   **Docker**: Para ejecutar las herramientas bioinformáticas en contenedores.
-    -   *Asegúrate de que el servicio de Docker esté en ejecución (`sudo systemctl start docker`).*
--   **Snakemake**: Para orquestar el pipeline. Se recomienda instalarlo a través de Conda:
-    ```bash
-    conda install -c bioconda snakemake
-    ```
+-   **Docker**: Para construir y ejecutar el entorno del pipeline.
+    -   *Asegúrate de que el servicio de Docker esté activo (`sudo systemctl start docker`) y que tu usuario tenga permisos para ejecutarlo (o usa `sudo`).*
+
 ---
 
 ## Guía de Inicio Rápido
 
-El único requisito de software en tu sistema es **Git** y **Docker**.
+Sigue estos tres sencillos pasos para poner en marcha el proyecto.
 
 ### 1. Clonar el Repositorio
 
-Abre una terminal y clona este repositorio en tu máquina:
+Abre una terminal y clona este repositorio en tu máquina. Luego, entra en el directorio recién creado.
 ```bash
 git clone https://github.com/juanjo-unsa/lvar.git
 cd lvar
+
+### 2. Instalación
+chmod +x setup.sh
+./setup.sh
+
+### 3. Ejecutar el pipeline
+
+./run_pipeline.sh
