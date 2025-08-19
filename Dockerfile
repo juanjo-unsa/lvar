@@ -1,15 +1,14 @@
 # ==============================================================================
-# Dockerfile para LVAR (Versión Final Definitiva - Flags SnpEff Corregidos)
+# Dockerfile para el pipeline LVAR
 # ==============================================================================
 
-# Usar Mambaforge para evitar problemas de ToS de Conda y tener Mamba por defecto
+# Usar Mambaforge para una instalación de Conda limpia y rápida.
 FROM condaforge/mambaforge:latest
 
-# --- Metadata ---
-LABEL maintainer="Juanjo <tu.email@ejemplo.com>"
-LABEL description="Entorno completo para el pipeline LVAR con SnpEff."
+LABEL maintainer="Juan José Aguirre <juanjoaguirre.IPE@outlook.com>"
+LABEL description="Entorno completo para el pipeline LVAR con SnpEff y bcftools."
 
-# --- Instalar herramientas bioinformáticas con Mamba ---
+# Instalar todas las herramientas bioinformáticas necesarias.
 RUN mamba install -n base -c conda-forge -c bioconda -y \
     snakemake \
     fastqc \
@@ -17,42 +16,44 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     fastp \
     bwa \
     samtools \
+    bcftools \
     gatk4 \
     snpeff \
     wget && \
     mamba clean --all -y
 
-# --- Configuración Manual de SnpEff y el Genoma de Referencia ---
-# Descargamos el Genoma y el GFF, y construimos la DB con los flags correctos
-# para omitir las comprobaciones de sanidad.
-
-# Variables para las URLs (VERIFICADAS) y nombres
-ENV DB_NAME "Lbraziliensis_2019_manual"
-ENV FASTA_URL "https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta"
-ENV GFF_URL "https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff"
-
-# Ruta al directorio de datos de SnpEff dentro del contenedor
-ENV SNPEFF_DATA_DIR "/opt/conda/share/snpeff-5.2-1/data"
-# Ruta donde guardaremos nuestro genoma para el alineamiento
-ENV GENOME_PATH "/opt/db/genome.fasta"
-
-RUN mkdir -p ${SNPEFF_DATA_DIR}/${DB_NAME} && \
+# Construir manualmente la base de datos de SnpEff para máxima consistencia.
+RUN \
+    # Definir variables para URLs y nombres
+    DB_NAME="Lbraziliensis_2019_manual" && \
+    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2_2019_Genome.fasta" && \
+    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2_2019.gff" && \
+    GENOME_PATH="/opt/db/genome.fasta" && \
+    # Encontrar la ruta de SnpEff dinámicamente para mayor robustez
+    SNPEFF_CONFIG_FILE=$(find /opt/conda/share -name snpEff.config) && \
+    SNPEFF_DIR=$(dirname "${SNPEFF_CONFIG_FILE}") && \
+    SNPEFF_DATA_DIR="${SNPEFF_DIR}/data" && \
+    \
+    # Crear directorios
+    mkdir -p "${SNPEFF_DATA_DIR}/${DB_NAME}" && \
     mkdir -p /opt/db && \
-    # Descargar el genoma y la anotación
-    wget -O ${SNPEFF_DATA_DIR}/${DB_NAME}/genes.gff "${GFF_URL}" && \
-    wget -O ${GENOME_PATH} "${FASTA_URL}" && \
-    # Copiar el genoma a la carpeta de SnpEff con el nombre que espera
-    cp ${GENOME_PATH} ${SNPEFF_DATA_DIR}/${DB_NAME}/sequences.fa && \
-    # Añadir la configuración de nuestra base de datos manual al snpEff.config
-    echo "" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
-    echo "# Manual database for L. braziliensis 2019 from TriTrypDB" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
-    echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> /opt/conda/share/snpeff-5.2-1/snpEff.config && \
-    # Construir la base de datos, usando los flags correctos para esta versión de SnpEff
-    snpEff build -gff3 -v ${DB_NAME} -noCheckCds -noCheckProtein
+    \
+    # Descargar los archivos de referencia de TriTrypDB
+    wget -O "${SNPEFF_DATA_DIR}/${DB_NAME}/genes.gff" "${GFF_URL}" && \
+    wget -O "${GENOME_PATH}" "${FASTA_URL}" && \
+    \
+    # Preparar archivos para SnpEff
+    cp "${GENOME_PATH}" "${SNPEFF_DATA_DIR}/${DB_NAME}/sequences.fa" && \
+    \
+    # Añadir nuestra base de datos personalizada a la configuración de SnpEff
+    echo "" >> "${SNPEFF_CONFIG_FILE}" && \
+    echo "# Base de datos manual para L. braziliensis 2019" >> "${SNPEFF_CONFIG_FILE}" && \
+    echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> "${SNPEFF_CONFIG_FILE}" && \
+    \
+    # Construir la base de datos de SnpEff
+    snpEff build -gff3 -v "${DB_NAME}" -noCheckCds -noCheckProtein
 
-# --- Configurar el entorno de trabajo ---
+# Configurar el entorno de trabajo y el punto de entrada para Snakemake.
 WORKDIR /pipeline
-
-# --- Definir el punto de entrada ---
 ENTRYPOINT ["snakemake"]
 CMD ["--help"]
