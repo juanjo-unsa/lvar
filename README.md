@@ -51,11 +51,13 @@ Abre una terminal y clona este repositorio en tu máquina. Luego, entra en el di
 ```bash
 git clone https://github.com/juanjo-unsa/lvar.git
 cd lvar
-
+```
 ### 2. Instalación
+```
 chmod +x setup.sh
 ./setup.sh
-
+```
 ### 3. Ejecutar el pipeline
-
+```
 ./run_pipeline.sh
+```
