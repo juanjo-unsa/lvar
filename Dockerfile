@@ -2,13 +2,24 @@
 # Dockerfile para el pipeline LVAR
 # ==============================================================================
 
-# Usar Mambaforge para una instalación de Conda limpia y rápida.
-FROM condaforge/mambaforge:latest
+# Usar una base limpia de Debian (stable) para asegurar disponibilidad de utilidades basicas.
+FROM debian:stable
 
-LABEL maintainer="Juan José Aguirre <juanjoaguirre.IPE@outlook.com>"
-LABEL description="Entorno completo para el pipeline LVAR con SnpEff y bcftools."
+# Instalar utilidades del sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    build-essential \
+    procps \
+    less && \
+    rm -rf /var/lib/apt/lists/*
 
-# Instalar todas las herramientas bioinformáticas necesarias.
+# Instalar Mambaforge (gestor de paquetes)
+RUN wget --quiet https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh -O mambaforge.sh && \
+    bash mambaforge.sh -b -p /opt/conda && \
+    rm mambaforge.sh
+ENV PATH /opt/conda/bin:$PATH
+
+# Instalar todas las herramientas bioinformáticas.
 RUN mamba install -n base -c conda-forge -c bioconda -y \
     snakemake \
     fastqc \
@@ -18,18 +29,17 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     samtools \
     bcftools \
     gatk4 \
-    snpeff \
-    wget && \
+    snpeff && \
     mamba clean --all -y
 
-# Construir manualmente la base de datos de SnpEff para máxima consistencia.
+# --- Configuración Manual de SnpEff ---
 RUN \
     # Definir variables para URLs y nombres
     DB_NAME="Lbraziliensis_2019_manual" && \
     FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta" && \
     GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff" && \
     GENOME_PATH="/opt/db/genome.fasta" && \
-    # Encontrar la ruta de SnpEff dinámicamente para mayor robustez
+    # Encontrar la ruta de SnpEff dinamicamente
     SNPEFF_CONFIG_FILE=$(find /opt/conda/share -name snpEff.config) && \
     SNPEFF_DIR=$(dirname "${SNPEFF_CONFIG_FILE}") && \
     SNPEFF_DATA_DIR="${SNPEFF_DIR}/data" && \
@@ -45,7 +55,7 @@ RUN \
     # Preparar archivos para SnpEff
     cp "${GENOME_PATH}" "${SNPEFF_DATA_DIR}/${DB_NAME}/sequences.fa" && \
     \
-    # Añadir nuestra base de datos personalizada a la configuración de SnpEff
+    # Añadir nuestra base de datos personalizada a la configuracion de SnpEff
     echo "" >> "${SNPEFF_CONFIG_FILE}" && \
     echo "# Base de datos manual para L. braziliensis 2019" >> "${SNPEFF_CONFIG_FILE}" && \
     echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> "${SNPEFF_CONFIG_FILE}" && \
