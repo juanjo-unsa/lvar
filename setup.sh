@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# LVAR Project Setup Script (setup.sh) - Versión Final
+# LVAR Project Setup Script (setup.sh) - Versión Final y Robusta
 # =============================================================================
 
 # --- Configuración y Colores ---
@@ -15,20 +15,25 @@ echo -e "\n${GREEN}1. Verificando la presencia de Docker...${NC}"
 if ! command -v docker &> /dev/null; then echo -e "${RED}ERROR: Docker no instalado.${NC}"; exit 1; fi
 echo "   [OK] Docker está instalado."
 
-# --- PASO 2: Construir la Imagen de Docker (si no existe) ---
-echo -e "\n${GREEN}2. Verificando la imagen de Docker...${NC}"
+# --- PASO 2: Construir la Imagen de Docker (con autolimpieza en caso de fallo) ---
+echo -e "\n${GREEN}2. Verificando y construyendo la imagen de Docker...${NC}"
 if [[ "$(docker images -q ${DOCKER_IMAGE_TAG} 2> /dev/null)" == "" ]]; then
     echo -e "${YELLOW}La imagen '${DOCKER_IMAGE_TAG}' no existe. Construyendo ahora...${NC}"
     echo -e "${YELLOW}Este paso puede tardar varios minutos.${NC}"
+    
+    # Intenta construir la imagen. Si falla, entra en el bloque 'else'.
     if docker build -t "$DOCKER_IMAGE_TAG" .; then
         echo -e "   ${GREEN}[OK] Imagen Docker construida con éxito.${NC}"
     else
-        echo -e "${RED}[ERROR] Falló la construcción de la imagen. Revisa los mensajes de error.${NC}"; exit 1
+        echo -e "${RED}[ERROR] Falló la construcción de la imagen. Revisa los mensajes de error.${NC}"
+        echo -e "${YELLOW}Intentando limpiar las capas de imagen fallidas...${NC}"
+        docker image prune -f
+        echo -e "${YELLOW}Limpieza completada. Abortando la instalación.${NC}"
+        exit 1
     fi
 else
     echo "   [OK] La imagen Docker '${DOCKER_IMAGE_TAG}' ya existe."
 fi
-
 
 # --- PASO 3: Crear Estructura de Directorios Local ---
 echo -e "\n${GREEN}3. Creando la estructura de directorios...${NC}"
@@ -58,7 +63,6 @@ read -p "RAM para GATK (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=$
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
 # Lanza el pipeline LVAR completo dentro de su contenedor Docker.
-
 echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK con ${USER_RAM}GB RAM..."
 docker run --rm -it \\
     -v "\$(pwd)/config:/pipeline/config" \\
@@ -77,11 +81,7 @@ echo "   [OK] Script de ejecución del pipeline './run_pipeline.sh' creado."
 cat > run_in_container.sh <<- EOM
 #!/bin/bash
 # Ejecuta cualquier comando dentro del contenedor del pipeline.
-# Si no se pasan argumentos, inicia un terminal interactivo (bash).
-# Úsalo para análisis post-pipeline como bgzip, tabix, bcftools, etc.
-
 COMMAND_TO_RUN="\${@:-bash}"
-
 echo "Ejecutando en contenedor: '\${COMMAND_TO_RUN}'"
 docker run --rm -it \\
     -v "\$(pwd):/pipeline" \\
