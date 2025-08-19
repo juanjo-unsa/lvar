@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# LVAR Project Setup Script (setup.sh) - Versión SnpEff
+# LVAR Project Setup Script (setup.sh) - Versión Final
 # =============================================================================
 
 # --- Configuración y Colores ---
@@ -15,14 +15,20 @@ echo -e "\n${GREEN}1. Verificando la presencia de Docker...${NC}"
 if ! command -v docker &> /dev/null; then echo -e "${RED}ERROR: Docker no instalado.${NC}"; exit 1; fi
 echo "   [OK] Docker está instalado."
 
-# --- PASO 2: Construir la Imagen de Docker ---
-echo -e "\n${GREEN}2. Construyendo la imagen de Docker del pipeline...${NC}"
-echo -e "${YELLOW}Este paso puede tardar varios minutos.${NC}"
-if docker build -t "$DOCKER_IMAGE_TAG" .; then
-    echo -e "   ${GREEN}[OK] Imagen Docker '$DOCKER_IMAGE_TAG' construida con éxito.${NC}"
+# --- PASO 2: Construir la Imagen de Docker (si no existe) ---
+echo -e "\n${GREEN}2. Verificando la imagen de Docker...${NC}"
+if [[ "$(docker images -q ${DOCKER_IMAGE_TAG} 2> /dev/null)" == "" ]]; then
+    echo -e "${YELLOW}La imagen '${DOCKER_IMAGE_TAG}' no existe. Construyendo ahora...${NC}"
+    echo -e "${YELLOW}Este paso puede tardar varios minutos.${NC}"
+    if docker build -t "$DOCKER_IMAGE_TAG" .; then
+        echo -e "   ${GREEN}[OK] Imagen Docker construida con éxito.${NC}"
+    else
+        echo -e "${RED}[ERROR] Falló la construcción de la imagen. Revisa los mensajes de error.${NC}"; exit 1
+    fi
 else
-    echo -e "${RED}[ERROR] Falló la construcción de la imagen. Revisa los mensajes de error.${NC}"; exit 1
+    echo "   [OK] La imagen Docker '${DOCKER_IMAGE_TAG}' ya existe."
 fi
+
 
 # --- PASO 3: Crear Estructura de Directorios Local ---
 echo -e "\n${GREEN}3. Creando la estructura de directorios...${NC}"
@@ -41,14 +47,18 @@ samples: "config/samples.tsv"
 EOM
 echo "   [OK] Archivos de configuración generados."
 
-# --- PASO 5: Generar Script de Ejecución (CORREGIDO) ---
-echo -e "\n${GREEN}5. Creando script de ejecución personalizado...${NC}"
+# --- PASO 5: Generar Scripts de Ejecución ---
+echo -e "\n${GREEN}5. Creando scripts de ejecución personalizados...${NC}"
 CORES_TOTAL=$(nproc 2>/dev/null || echo 8)
 RAM_SUGGESTED=$(( $(free -g | awk '/^Mem:/{print $2}' 2>/dev/null || echo 16) * 80 / 100 ))
 read -p "Número de cores a usar [Sugerido: $CORES_TOTAL]: " USER_CORES; USER_CORES=${USER_CORES:-$CORES_TOTAL}
 read -p "RAM para GATK (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=${USER_RAM:-$RAM_SUGGESTED}
+
+# --- Script para ejecutar el pipeline (run_pipeline.sh) ---
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
+# Lanza el pipeline LVAR completo dentro de su contenedor Docker.
+
 echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK con ${USER_RAM}GB RAM..."
 docker run --rm -it \\
     -v "\$(pwd)/config:/pipeline/config" \\
@@ -61,10 +71,29 @@ docker run --rm -it \\
     "\$@"
 EOM
 chmod +x run_pipeline.sh
-echo "   [OK] Script de ejecución './run_pipeline.sh' creado."
+echo "   [OK] Script de ejecución del pipeline './run_pipeline.sh' creado."
+
+# --- Script para ejecutar comandos genéricos (run_in_container.sh) ---
+cat > run_in_container.sh <<- EOM
+#!/bin/bash
+# Ejecuta cualquier comando dentro del contenedor del pipeline.
+# Si no se pasan argumentos, inicia un terminal interactivo (bash).
+# Úsalo para análisis post-pipeline como bgzip, tabix, bcftools, etc.
+
+COMMAND_TO_RUN="\${@:-bash}"
+
+echo "Ejecutando en contenedor: '\${COMMAND_TO_RUN}'"
+docker run --rm -it \\
+    -v "\$(pwd):/pipeline" \\
+    -w "/pipeline" \\
+    --entrypoint "" \\
+    "${DOCKER_IMAGE_TAG}" \\
+    \${COMMAND_TO_RUN}
+EOM
+chmod +x run_in_container.sh
+echo "   [OK] Script de utilidad './run_in_container.sh' creado."
 
 # --- PASO 6: Organizar Archivos FASTQ ---
-# ... (sin cambios)
 echo -e "\n${GREEN}6. Organizando los archivos de datos FASTQ...${NC}"
 read -e -p "Proporciona la RUTA ABSOLUTA a la carpeta con tus archivos .fastq.gz: " SOURCE_DIR
 if [ -d "$SOURCE_DIR" ]; then
@@ -78,5 +107,7 @@ fi
 
 # --- Conclusión ---
 echo -e "\n${GREEN}¡CONFIGURACIÓN COMPLETADA!${NC}"
-echo "Para ejecutar el análisis, usa el script:"
+echo "Para ejecutar el análisis completo, usa:"
 echo -e "${GREEN}./run_pipeline.sh${NC}"
+echo "Para ejecutar comandos auxiliares (como bcftools) o explorar, usa:"
+echo -e "${GREEN}./run_in_container.sh <tu_comando>${NC}"
