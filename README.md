@@ -10,13 +10,13 @@ Este proyecto está construido con un enfoque de **máxima reproducibilidad y fa
 
 ## Arquitectura y Reproducibilidad
 
-La filosofía de este pipeline es simple: el único requisito para el usuario es tener **Git** y **Docker**.
+El único requisito para el usuario es tener **Git** y **Docker**.
 
 El `Dockerfile` del proyecto se encarga de:
 1.  Instalar un entorno Conda basado en Mambaforge para evitar problemas de compatibilidad.
 2.  Instalar todas las herramientas necesarias (`Snakemake`, `BWA`, `GATK4`, `SnpEff`, etc.).
-3.  Descargar los archivos de referencia (genoma FASTA y anotación GFF) directamente desde una fuente fiable (TriTrypDB).
-4.  Construir una base de datos de SnpEff a medida para asegurar una coherencia del 100% entre el alineamiento y la anotación.
+3.  Descargar los archivos de referencia (genoma FASTA y anotación GFF) directamente desde TriTrypDB.
+4.  Construir una base de datos de SnpEff.
 
 Esto garantiza que cualquier persona, en cualquier máquina con Docker, obtendrá exactamente los mismos resultados a partir de los mismos datos de entrada.
 
@@ -24,7 +24,7 @@ Esto garantiza que cualquier persona, en cualquier máquina con Docker, obtendr�
 
 1.  **Control de Calidad (QC)**: `FastQC` y `MultiQC` para evaluar las lecturas crudas.
 2.  **Limpieza de Lecturas (Trimming)**: `fastp` para eliminar adaptadores y bases de baja calidad.
-3.  **Alineamiento**: `BWA-MEM` contra el genoma de referencia de *L. braziliensis* (cepa MHOM/BR/75/M2904, ensamblaje de 2019).
+3.  **Alineamiento**: `BWA-MEM` contra el genoma de referencia de *L. braziliensis* (MHOM/BR/75/M2904).
 4.  **Post-procesamiento de BAM**: `GATK MarkDuplicates` y `Samtools` para ordenar e indexar.
 5.  **Llamada de Variantes**: `GATK HaplotypeCaller` para identificar SNPs e Indels.
 6.  **Anotación de Variantes**: `SnpEff` para predecir el impacto funcional de las variantes.
@@ -51,11 +51,13 @@ Abre una terminal y clona este repositorio en tu máquina. Luego, entra en el di
 ```bash
 git clone https://github.com/juanjo-unsa/lvar.git
 cd lvar
-
+```
 ### 2. Instalación
+```
 chmod +x setup.sh
 ./setup.sh
-
+```
 ### 3. Ejecutar el pipeline
-
+```
 ./run_pipeline.sh
+```
