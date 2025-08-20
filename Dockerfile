@@ -1,14 +1,9 @@
 # ==============================================================================
-# Dockerfile para LVAR (Versión Final Definitiva - URL de Mambaforge Corregida)
+# Dockerfile para LVAR (Versión Final y Autocontenida)
 # ==============================================================================
 
 # Usar una base limpia de Debian (stable) para asegurar la disponibilidad de utilidades basicas.
 FROM debian:stable
-
-# --- ARGUMENTOS DE CONSTRUCCION ---
-# Estos argumentos seran pasados por el script setup.sh
-ARG FASTA_URL_ARG
-ARG GFF_URL_ARG
 
 # --- Metadata ---
 LABEL maintainer="Juanjo <tu.email@ejemplo.com>"
@@ -23,8 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# --- Instalar Mambaforge (CORRECCIÓN APLICADA AQUÍ) ---
-# Se utiliza una URL directa a una versión específica para evitar problemas de redirección.
+# --- Instalar Mambaforge (gestor de paquetes) ---
 RUN wget --quiet --no-check-certificate https://github.com/conda-forge/miniforge/releases/download/24.1.2-0/Mambaforge-24.1.2-0-Linux-x86_64.sh -O mambaforge.sh && \
     bash mambaforge.sh -b -p /opt/conda && \
     rm mambaforge.sh
@@ -45,10 +39,10 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
 
 # --- Construir manualmente la base de datos de SnpEff. ---
 RUN \
-    # Definir variables internas usando los argumentos de construccion
+    # Definir variables internas con las URLs correctas
     DB_NAME="Lbraziliensis_2019_manual" && \
-    FASTA_URL="${FASTA_URL_ARG}" && \
-    GFF_URL="${GFF_URL_ARG}" && \
+    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta" && \
+    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff" && \
     GENOME_PATH="/opt/db/genome.fasta" && \
     # Encontrar la ruta de SnpEff dinamicamente
     SNPEFF_CONFIG_FILE=$(find /opt/conda/share -name snpEff.config) && \
