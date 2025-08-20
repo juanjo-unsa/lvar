@@ -7,14 +7,15 @@
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 DOCKER_IMAGE_TAG="lvar-snpeff-pipeline:latest"
 
-# --- Función para obtener y validar una URL del usuario ---
+# --- Funcion para obtener y validar una URL del usuario ---
 get_valid_url() {
     local prompt_message=$1
     local default_url=$2
     local user_url
 
     while true; do
-        read -e -p "$(echo -e ${YELLOW}"$prompt_message"${NC}" B-n "\n[Default: $default_url]: ") " user_url
+        # LÍNEA CORREGIDA: Se ha eliminado el "B-n" erróneo.
+        read -e -p "$(echo -e "${YELLOW}${prompt_message}${NC}\n[Default: $default_url]: ")" user_url
         # Si el usuario presiona Enter, usar el valor por defecto
         user_url=${user_url:-$default_url}
 
@@ -143,7 +144,7 @@ else
 fi
 
 # --- Conclusión ---
-echo -e "\n${GREEN}¡CONFIGURACIÓN COMPLETADA!${NC}"
+echo -e "\n${GREEN}¡CONFIGURACION COMPLETADA!${NC}"
 echo "Para ejecutar el análisis completo, usa:"
 echo -e "${GREEN}./run_pipeline.sh${NC}"
 echo "Para ejecutar comandos auxiliares (como bcftools) o explorar, usa:"
