@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# LVAR Project Setup Script (setup.sh) - Versión Final Simplificada
+# LVAR Project Setup Script (setup.sh)
 # =============================================================================
 
 # --- Configuración y Colores ---
@@ -51,16 +51,20 @@ samples: "config/samples.tsv"
 EOM
 echo "   [OK] Archivos de configuración generados."
 
-# --- PASO 5: Generar Scripts de Ejecución ---
-echo -e "\n${GREEN}5. Creando scripts de ejecución personalizados...${NC}"
+# --- PASO 5: Generar Scripts de Ejecución (CORREGIDO) ---
+echo -e "\n${GREEN}5. Creando scripts de ejecución con recursos optimizados...${NC}"
 CORES_TOTAL=$(nproc 2>/dev/null || echo 8)
-RAM_SUGGESTED=$(( $(free -g | awk '/^Mem:/{print $2}' 2>/dev/null || echo 16) * 80 / 100 ))
-read -p "Número de cores a usar [Sugerido: $CORES_TOTAL]: " USER_CORES; USER_CORES=${USER_CORES:-$CORES_TOTAL}
-read -p "RAM para GATK (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=${USER_RAM:-$RAM_SUGGESTED}
+RAM_TOTAL_GB=$(free -g | awk '/^Mem:/{print $2}' 2>/dev/null || echo 16)
+RAM_SUGGESTED=$(( $RAM_TOTAL_GB * 80 / 100 ))
 
+# Cambiamos la pregunta para que sea más clara
+read -p "Número total de cores a usar [Sugerido: $CORES_TOTAL]: " USER_CORES; USER_CORES=${USER_CORES:-$CORES_TOTAL}
+read -p "Memoria RAM máxima disponible para el pipeline (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=${USER_RAM:-$RAM_SUGGESTED}
+
+# Actualizamos el script para que pase los recursos a Snakemake
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
-echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK con ${USER_RAM}GB RAM..."
+echo "Iniciando pipeline LVAR con un presupuesto de ${USER_CORES} cores y ${USER_RAM}GB RAM..."
 docker run --rm -it \\
     -v "\$(pwd)/config:/pipeline/config" \\
     -v "\$(pwd)/data:/pipeline/data" \\
@@ -68,12 +72,14 @@ docker run --rm -it \\
     -v "\$(pwd)/Snakefile:/pipeline/Snakefile" \\
     "${DOCKER_IMAGE_TAG}" \\
     --cores ${USER_CORES} \\
-    --config gatk_ram_gb=${USER_RAM} \\
+    --resources mem_gb=${USER_RAM} \\
+    --config max_mem_gb=${USER_RAM} \\
     "\$@"
 EOM
 chmod +x run_pipeline.sh
 echo "   [OK] Script de ejecución del pipeline './run_pipeline.sh' creado."
 
+# El script auxiliar no necesita cambios
 cat > run_in_container.sh <<- EOM
 #!/bin/bash
 COMMAND_TO_RUN="\${@:-bash}"
