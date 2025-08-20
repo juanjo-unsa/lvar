@@ -55,7 +55,7 @@ Asegúrate de tener instalados los siguientes programas en tu sistema:
 #### **1.2. Obtener el Código del Pipeline**
 Clona el repositorio desde GitHub y entra en el directorio del proyecto.
 ```bash
-git clone https://github.com/juanjo-unsa/lvar.git
+git clone https://github.com/juanjoaguirre-IPE/lvar.git
 cd lvar
 ```
 
