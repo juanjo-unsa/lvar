@@ -1,5 +1,5 @@
 # ==============================================================================
-# Dockerfile para LVAR
+# Dockerfile para LVAR (Versión Final Definitiva - URL de Mambaforge Corregida)
 # ==============================================================================
 
 # Usar una base limpia de Debian (stable) para asegurar la disponibilidad de utilidades basicas.
@@ -11,7 +11,7 @@ ARG FASTA_URL_ARG
 ARG GFF_URL_ARG
 
 # --- Metadata ---
-LABEL maintainer="Juan José Aguirre <juanjoaguirre.IPE@gmail.com>"
+LABEL maintainer="Juanjo <tu.email@ejemplo.com>"
 LABEL description="Entorno completo para el pipeline LVAR con SnpEff y bcftools."
 
 # --- Instalar dependencias del sistema, incluyendo `less`. ---
@@ -23,8 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# --- Instalar Mambaforge (gestor de paquetes) ---
-RUN wget --quiet https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh -O mambaforge.sh && \
+# --- Instalar Mambaforge (CORRECCIÓN APLICADA AQUÍ) ---
+# Se utiliza una URL directa a una versión específica para evitar problemas de redirección.
+RUN wget --quiet --no-check-certificate https://github.com/conda-forge/miniforge/releases/download/24.1.2-0/Mambaforge-24.1.2-0-Linux-x86_64.sh -O mambaforge.sh && \
     bash mambaforge.sh -b -p /opt/conda && \
     rm mambaforge.sh
 ENV PATH /opt/conda/bin:$PATH
