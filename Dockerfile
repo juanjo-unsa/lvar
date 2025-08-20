@@ -1,25 +1,35 @@
 # ==============================================================================
-# Dockerfile para el pipeline LVAR
+# Dockerfile para LVAR
 # ==============================================================================
 
-# Usar una base limpia de Debian (stable) para asegurar disponibilidad de utilidades basicas.
+# Usar una base limpia de Debian (stable) para asegurar la disponibilidad de utilidades basicas.
 FROM debian:stable
 
-# Instalar utilidades del sistema
+# --- ARGUMENTOS DE CONSTRUCCION ---
+# Estos argumentos seran pasados por el script setup.sh
+ARG FASTA_URL_ARG
+ARG GFF_URL_ARG
+
+# --- Metadata ---
+LABEL maintainer="Juan José Aguirre <juanjoaguirre.IPE@gmail.com>"
+LABEL description="Entorno completo para el pipeline LVAR con SnpEff y bcftools."
+
+# --- Instalar dependencias del sistema, incluyendo `less`. ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     build-essential \
     procps \
-    less && \
+    less \
+    ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Instalar Mambaforge (gestor de paquetes)
+# --- Instalar Mambaforge (gestor de paquetes) ---
 RUN wget --quiet https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh -O mambaforge.sh && \
     bash mambaforge.sh -b -p /opt/conda && \
     rm mambaforge.sh
 ENV PATH /opt/conda/bin:$PATH
 
-# Instalar todas las herramientas bioinformáticas.
+# --- Instalar todas las herramientas bioinformaticas. ---
 RUN mamba install -n base -c conda-forge -c bioconda -y \
     snakemake \
     fastqc \
@@ -32,12 +42,12 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     snpeff && \
     mamba clean --all -y
 
-# --- Configuración Manual de SnpEff ---
+# --- Construir manualmente la base de datos de SnpEff. ---
 RUN \
-    # Definir variables para URLs y nombres
+    # Definir variables internas usando los argumentos de construccion
     DB_NAME="Lbraziliensis_2019_manual" && \
-    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta" && \
-    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff" && \
+    FASTA_URL="${FASTA_URL_ARG}" && \
+    GFF_URL="${GFF_URL_ARG}" && \
     GENOME_PATH="/opt/db/genome.fasta" && \
     # Encontrar la ruta de SnpEff dinamicamente
     SNPEFF_CONFIG_FILE=$(find /opt/conda/share -name snpEff.config) && \
@@ -55,7 +65,7 @@ RUN \
     # Preparar archivos para SnpEff
     cp "${GENOME_PATH}" "${SNPEFF_DATA_DIR}/${DB_NAME}/sequences.fa" && \
     \
-    # Añadir nuestra base de datos personalizada a la configuracion de SnpEff
+    # Anadir nuestra base de datos personalizada a la configuracion de SnpEff
     echo "" >> "${SNPEFF_CONFIG_FILE}" && \
     echo "# Base de datos manual para L. braziliensis 2019" >> "${SNPEFF_CONFIG_FILE}" && \
     echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> "${SNPEFF_CONFIG_FILE}" && \
