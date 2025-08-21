@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# LVAR Project Setup Script (setup.sh)
+# LVAR Project Setup Script
 # =============================================================================
 
 # --- Configuración y Colores ---
@@ -9,13 +9,13 @@ DOCKER_IMAGE_TAG="lvar-snpeff-pipeline:latest"
 
 echo -e "${GREEN}--- Iniciando la Configuración del Proyecto LVAR ---${NC}"
 
-# --- PASO 1: Verificar Docker ---
+# --- PASO 1: Verificar Requisitos ---
 if [ ! -f "Dockerfile" ] || [ ! -f "Snakefile" ]; then echo -e "${RED}ERROR: 'Dockerfile' o 'Snakefile' no encontrados. Ejecuta desde la raíz del repo.${NC}"; exit 1; fi
 echo -e "\n${GREEN}1. Verificando la presencia de Docker...${NC}"
 if ! command -v docker &> /dev/null; then echo -e "${RED}ERROR: Docker no instalado.${NC}"; exit 1; fi
 echo "   [OK] Docker está instalado."
 
-# --- PASO 2: Construir la Imagen de Docker ---
+# --- PASO 2: Construir Imagen Docker ---
 echo -e "\n${GREEN}2. Verificando y construyendo la imagen de Docker...${NC}"
 if [[ "$(docker images -q ${DOCKER_IMAGE_TAG} 2> /dev/null)" == "" ]]; then
     echo -e "${YELLOW}La imagen '${DOCKER_IMAGE_TAG}' no existe. Construyendo ahora...${NC}"
@@ -34,12 +34,12 @@ else
     echo "   [OK] La imagen Docker '${DOCKER_IMAGE_TAG}' ya existe."
 fi
 
-# --- PASO 3: Crear Estructura de Directorios Local ---
+# --- PASO 3: Crear Estructura de Directorios ---
 echo -e "\n${GREEN}3. Creando la estructura de directorios...${NC}"
 mkdir -p config data/raw_fastq results/{qc,trimmed,aligned,variants,annotated,logs}
 echo "   [OK] Estructura de directorios creada."
 
-# --- PASO 4: Configuración Interactiva de Muestras ---
+# --- PASO 4: Configurar Muestras ---
 echo -e "\n${GREEN}4. Configurando las muestras...${NC}"
 declare -a SAMPLES_ARRAY
 echo -e "${YELLOW}Ingresa los nombres de tus muestras (prefijos de los archivos FASTQ). Presiona Enter para terminar.${NC}"
@@ -51,20 +51,18 @@ samples: "config/samples.tsv"
 EOM
 echo "   [OK] Archivos de configuración generados."
 
-# --- PASO 5: Generar Scripts de Ejecución (CORREGIDO) ---
+# --- PASO 5: Generar Scripts de Ejecución ---
 echo -e "\n${GREEN}5. Creando scripts de ejecución personalizados...${NC}"
 CORES_TOTAL=$(nproc 2>/dev/null || echo 8)
 RAM_TOTAL_GB=$(free -g | awk '/^Mem:/{print $2}' 2>/dev/null || echo 16)
 RAM_SUGGESTED=$(( $RAM_TOTAL_GB * 80 / 100 ))
 
-# Cambiamos la pregunta para que sea más clara
 read -p "Número total de cores a usar [Sugerido: $CORES_TOTAL]: " USER_CORES; USER_CORES=${USER_CORES:-$CORES_TOTAL}
 read -p "Memoria RAM máxima disponible para el pipeline (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=${USER_RAM:-$RAM_SUGGESTED}
 
-# Actualizamos el script para que pase los recursos a Snakemake
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
-echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK con ${USER_RAM}GB RAM..." >&2
+echo "Iniciando pipeline LVAR con un presupuesto de ${USER_CORES} cores y ${USER_RAM}GB RAM..." >&2
 docker run --rm -it \\
     --user "\$(id -u):\$(id -g)" \\
     -v "\$(pwd)/config:/pipeline/config" \\
@@ -73,13 +71,13 @@ docker run --rm -it \\
     -v "\$(pwd)/Snakefile:/pipeline/Snakefile" \\
     "${DOCKER_IMAGE_TAG}" \\
     --cores ${USER_CORES} \\
+    --resources mem_gb=${USER_RAM} \\
     --config max_mem_gb=${USER_RAM} \\
     "\$@"
 EOM
 chmod +x run_pipeline.sh
 echo "   [OK] Script de ejecución del pipeline './run_pipeline.sh' creado."
 
-# El script auxiliar no necesita cambios
 cat > run_in_container.sh <<- EOM
 #!/bin/bash
 COMMAND_TO_RUN="\${@:-bash}"
