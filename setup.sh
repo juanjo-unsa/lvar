@@ -52,7 +52,7 @@ EOM
 echo "   [OK] Archivos de configuración generados."
 
 # --- PASO 5: Generar Scripts de Ejecución (CORREGIDO) ---
-echo -e "\n${GREEN}5. Creando scripts de ejecución con recursos optimizados...${NC}"
+echo -e "\n${GREEN}5. Creando scripts de ejecución personalizados...${NC}"
 CORES_TOTAL=$(nproc 2>/dev/null || echo 8)
 RAM_TOTAL_GB=$(free -g | awk '/^Mem:/{print $2}' 2>/dev/null || echo 16)
 RAM_SUGGESTED=$(( $RAM_TOTAL_GB * 80 / 100 ))
@@ -64,15 +64,15 @@ read -p "Memoria RAM máxima disponible para el pipeline (GB) [Sugerido: ${RAM_S
 # Actualizamos el script para que pase los recursos a Snakemake
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
-echo "Iniciando pipeline LVAR con un presupuesto de ${USER_CORES} cores y ${USER_RAM}GB RAM..."
+echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK con ${USER_RAM}GB RAM..." >&2
 docker run --rm -it \\
+    --user "\$(id -u):\$(id -g)" \\
     -v "\$(pwd)/config:/pipeline/config" \\
     -v "\$(pwd)/data:/pipeline/data" \\
     -v "\$(pwd)/results:/pipeline/results" \\
     -v "\$(pwd)/Snakefile:/pipeline/Snakefile" \\
     "${DOCKER_IMAGE_TAG}" \\
     --cores ${USER_CORES} \\
-    --resources mem_gb=${USER_RAM} \\
     --config max_mem_gb=${USER_RAM} \\
     "\$@"
 EOM
@@ -83,8 +83,9 @@ echo "   [OK] Script de ejecución del pipeline './run_pipeline.sh' creado."
 cat > run_in_container.sh <<- EOM
 #!/bin/bash
 COMMAND_TO_RUN="\${@:-bash}"
-echo "Ejecutando en contenedor: '\${COMMAND_TO_RUN}'"
+echo "Ejecutando en contenedor: '\${COMMAND_TO_RUN}'" >&2
 docker run --rm -it \\
+    --user "\$(id -u):\$(id -g)" \\
     -v "\$(pwd):/pipeline" \\
     -w "/pipeline" \\
     --entrypoint "" \\
