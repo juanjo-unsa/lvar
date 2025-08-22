@@ -40,9 +40,9 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
 # --- Construir manualmente la base de datos de SnpEff. ---
 RUN \
     # Definir variables internas con las URLs correctas y verificadas
-    DB_NAME="Lbraziliensis_2019_manual" && \
-    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta" && \
-    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff" && \
+    DB_NAME="Tritrypdb_Lbraziliensis_reference" && \
+    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_Genome.fasta" && \
+    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904.gff" && \
     GENOME_PATH="/opt/db/genome.fasta" && \
     # Encontrar la ruta de SnpEff dinamicamente
     SNPEFF_CONFIG_FILE=$(find /opt/conda/share -name snpEff.config) && \
