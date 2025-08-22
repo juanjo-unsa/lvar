@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# LVAR Project Setup Script (setup.sh) - Versión Final Simplificada
+# LVAR Project Setup Script
 # =============================================================================
 
 # --- Configuración y Colores ---
@@ -52,25 +52,21 @@ samples: "config/samples.tsv"
 EOM
 echo "   [OK] Archivos de configuración generados."
 
-# --- PASO 5: Generar Scripts de Ejecución (CORREGIDO) ---
+# --- PASO 5: Generar Scripts de Ejecución ---
 echo -e "\n${GREEN}5. Creando scripts de ejecución personalizados...${NC}"
 CORES_TOTAL=$(nproc 2>/dev/null || echo 8)
 RAM_SUGGESTED=32
 
 read -p "Número total de cores a usar [Sugerido: $CORES_TOTAL]: " USER_CORES; USER_CORES=${USER_CORES:-$CORES_TOTAL}
-read -p "Memoria RAM para GATK HaplotypeCaller (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=${USER_RAM:-$RAM_SUGGESTED}
+read -p "Memoria RAM para GATK HaplotypeCaller (GB) [Sugerido: ${RAM_SUGGESTED}]: " USER_RAM; USER_RAM=${USER_RAM:-$USER_RAM}
 
-# --- Script para ejecutar el pipeline (run_pipeline.sh) ---
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
 echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK HaplotypeCaller con ${USER_RAM}GB RAM..." >&2
 docker run --rm -it \\
     --user "\$(id -u):\$(id -g)" \\
-    -e HOME=/pipeline \\
-    -v "\$(pwd)/config:/pipeline/config" \\
-    -v "\$(pwd)/data:/pipeline/data" \\
-    -v "\$(pwd)/results:/pipeline/results" \\
-    -v "\$(pwd)/Snakefile:/pipeline/Snakefile" \\
+    -v "\$(pwd):/pipeline" \\
+    -w "/pipeline" \\
     "${DOCKER_IMAGE_TAG}" \\
     --cores ${USER_CORES} \\
     --config gatk_ram_gb=${USER_RAM} \\
@@ -79,14 +75,12 @@ EOM
 chmod +x run_pipeline.sh
 echo "   [OK] Script de ejecución del pipeline './run_pipeline.sh' creado."
 
-# --- Script para ejecutar comandos genéricos (run_in_container.sh) ---
 cat > run_in_container.sh <<- EOM
 #!/bin/bash
 COMMAND_TO_RUN="\${@:-bash}"
 echo "Ejecutando en contenedor: '\${COMMAND_TO_RUN}'" >&2
 docker run --rm -it \\
     --user "\$(id -u):\$(id -g)" \\
-    -e HOME=/pipeline \\
     -v "\$(pwd):/pipeline" \\
     -w "/pipeline" \\
     --entrypoint "" \\
