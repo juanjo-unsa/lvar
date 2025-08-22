@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# LVAR Project Setup Script (setup.sh) - Versión Final Interactiva y Optimizada
+# LVAR Project Setup Script (setup.sh) - Versión Final Interactiva
 # =============================================================================
 
 # --- Configuración y Colores ---
