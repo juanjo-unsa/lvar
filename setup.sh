@@ -35,7 +35,8 @@ fi
 
 # --- PASO 3: Crear Estructura de Directorios ---
 echo -e "\n${GREEN}3. Creando la estructura de directorios...${NC}"
-mkdir -p config data/raw_fastq results/{qc,trimmed,aligned,variants,annotated,logs,comparison}
+# CORRECCIÓN: Se añade la carpeta 'reference' dentro de 'results'
+mkdir -p config data/raw_fastq results/{qc,trimmed,aligned,variants,annotated,logs,comparison,reference}
 echo "   [OK] Estructura de directorios creada."
 
 # --- PASO 4: Configurar Muestras ---
@@ -61,7 +62,7 @@ read -p "Memoria RAM para GATK HaplotypeCaller (GB) [Sugerido: ${RAM_SUGGESTED}]
 
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
-echo "Iniciando pipeline LVAR con un presupuesto de ${USER_CORES} cores y ${USER_RAM}GB RAM..." >&2
+echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK HaplotypeCaller con ${USER_RAM}GB RAM..." >&2
 docker run --rm -it \\
     --user "\$(id -u):\$(id -g)" \\
     -e HOME=/pipeline \\
@@ -69,8 +70,7 @@ docker run --rm -it \\
     -w "/pipeline" \\
     "${DOCKER_IMAGE_TAG}" \\
     --cores ${USER_CORES} \\
-    --resources mem_gb=${USER_RAM} \\
-    --config max_mem_gb=${USER_RAM} \\
+    --config gatk_ram_gb=${USER_RAM} \\
     "\$@"
 EOM
 chmod +x run_pipeline.sh

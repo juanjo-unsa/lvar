@@ -4,14 +4,17 @@ import pandas as pd
 configfile: "config/config.yaml"
 SAMPLES = pd.read_csv(config['samples'], sep='\t').set_index('sample', drop=False)
 
-REF_GENOME = "/opt/db/genome.fasta"
-SNPEFF_DB = "Lbraziliensis_custom_db" # Nombre de la DB que creamos en el Dockerfile
+# Ruta al genoma inmutable DENTRO del contenedor (solo lectura)
+REF_GENOME_CONTAINER_PATH = "/opt/db/genome.fasta"
+# Ruta a nuestra copia local de la referencia y sus indices (lectura/escritura)
+REF_GENOME_LOCAL = "results/reference/genome.fasta"
+# Nombre de la DB de SnpEff
+SNPEFF_DB = "Lbraziliensis_custom_db"
 
 # --- Regla Final ---
-# El objetivo final por defecto es ahora el resultado de la comparacion.
 rule all:
     input:
-        "results/comparison/0001.vcf", # Variantes unicas del segundo aislado
+        "results/comparison/0001.vcf",
         "results/comparison/README.txt"
 
 # --- QC y Trimming ---
@@ -36,21 +39,26 @@ rule fastp:
     shell: "fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} --thread {threads} -h /dev/null -j /dev/null &> {log}"
 
 # --- Indexado de Referencia ---
+rule copy_reference_for_indexing:
+    input: REF_GENOME_CONTAINER_PATH
+    output: temp(REF_GENOME_LOCAL)
+    shell: "cp {input} {output}"
+
 rule bwa_index:
-    input: REF_GENOME
-    output: touch(REF_GENOME + ".bwa_indexed")
+    input: REF_GENOME_LOCAL
+    output: touch(REF_GENOME_LOCAL + ".bwa_indexed")
     log: "results/logs/bwa_index.log"
     shell: "bwa index {input} &> {log}"
 
 rule samtools_faidx:
-    input: REF_GENOME
-    output: REF_GENOME + ".fai"
+    input: REF_GENOME_LOCAL
+    output: REF_GENOME_LOCAL + ".fai"
     log: "results/logs/samtools_faidx.log"
     shell: "samtools faidx {input} &> {log}"
 
 rule gatk_create_dictionary:
-    input: REF_GENOME
-    output: REF_GENOME.replace(".fasta", ".dict")
+    input: REF_GENOME_LOCAL
+    output: REF_GENOME_LOCAL.replace(".fasta", ".dict")
     log: "results/logs/gatk_create_dictionary.log"
     params: java_opts="-Xmx4g"
     shell: "gatk --java-options '{params.java_opts}' CreateSequenceDictionary -R {input} -O {output} &> {log}"
@@ -60,8 +68,8 @@ rule bwa_mem_sort:
     input:
         r1="results/trimmed/{sample}_R1.fastq.gz",
         r2="results/trimmed/{sample}_R2.fastq.gz",
-        ref=REF_GENOME,
-        indexed=REF_GENOME + ".bwa_indexed"
+        ref=REF_GENOME_LOCAL,
+        indexed=REF_GENOME_LOCAL + ".bwa_indexed"
     output: bam="results/aligned/{sample}.sorted.bam"
     params: read_group=r"'@RG\tID:{sample}\tSM:{sample}\tPL:ILLUMINA'"
     log: "results/logs/bwa_mem/{sample}.log"
@@ -86,9 +94,9 @@ rule haplotype_caller:
     input:
         bam="results/aligned/{sample}.dedup.bam",
         bai="results/aligned/{sample}.dedup.bam.bai",
-        ref=REF_GENOME,
-        fai=REF_GENOME + ".fai",
-        dict=REF_GENOME.replace(".fasta", ".dict")
+        ref=REF_GENOME_LOCAL,
+        fai=REF_GENOME_LOCAL + ".fai",
+        dict=REF_GENOME_LOCAL.replace(".fasta", ".dict")
     output: vcf="results/variants/{sample}.vcf.gz"
     params: java_opts=f"-Xmx{config.get('gatk_ram_gb', 16)}g"
     log: "results/logs/haplotype_caller/{sample}.log"
