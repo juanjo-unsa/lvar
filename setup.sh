@@ -3,7 +3,6 @@
 # LVAR Project Setup Script
 # =============================================================================
 
-# --- Configuración y Colores ---
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 DOCKER_IMAGE_TAG="lvar-snpeff-pipeline:latest"
 
@@ -62,14 +61,16 @@ read -p "Memoria RAM para GATK HaplotypeCaller (GB) [Sugerido: ${RAM_SUGGESTED}]
 
 cat > run_pipeline.sh <<- EOM
 #!/bin/bash
-echo "Iniciando pipeline LVAR con ${USER_CORES} cores y GATK HaplotypeCaller con ${USER_RAM}GB RAM..." >&2
+echo "Iniciando pipeline LVAR con un presupuesto de ${USER_CORES} cores y ${USER_RAM}GB RAM..." >&2
 docker run --rm -it \\
     --user "\$(id -u):\$(id -g)" \\
+    -e HOME=/pipeline \\
     -v "\$(pwd):/pipeline" \\
     -w "/pipeline" \\
     "${DOCKER_IMAGE_TAG}" \\
     --cores ${USER_CORES} \\
-    --config gatk_ram_gb=${USER_RAM} \\
+    --resources mem_gb=${USER_RAM} \\
+    --config max_mem_gb=${USER_RAM} \\
     "\$@"
 EOM
 chmod +x run_pipeline.sh
@@ -81,6 +82,7 @@ COMMAND_TO_RUN="\${@:-bash}"
 echo "Ejecutando en contenedor: '\${COMMAND_TO_RUN}'" >&2
 docker run --rm -it \\
     --user "\$(id -u):\$(id -g)" \\
+    -e HOME=/pipeline \\
     -v "\$(pwd):/pipeline" \\
     -w "/pipeline" \\
     --entrypoint "" \\
