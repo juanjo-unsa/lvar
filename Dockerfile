@@ -1,14 +1,9 @@
 # ==============================================================================
-# Dockerfile para el pipeline LVAR (FINAL Y A PRUEBA DE FALLOS)
+# Dockerfile para LVAR (Versión Final y Autocontenida)
 # ==============================================================================
 
-# Usar una base limpia de Debian (stable) para asegurar disponibilidad de utilidades basicas.
+# Usar una base limpia de Debian (stable) para asegurar la disponibilidad de utilidades basicas.
 FROM debian:stable
-
-# --- ARGUMENTOS DE CONSTRUCCION ---
-# Estos argumentos seran pasados por el script setup.sh
-ARG FASTA_URL_ARG
-ARG GFF_URL_ARG
 
 # --- Metadata ---
 LABEL maintainer="Juanjo <tu.email@ejemplo.com>"
@@ -44,10 +39,10 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
 
 # --- Construir manualmente la base de datos de SnpEff. ---
 RUN \
-    # Definir variables internas usando los argumentos de construccion
-    DB_NAME="Lbraziliensis_custom_db" && \
-    FASTA_URL="${FASTA_URL_ARG}" && \
-    GFF_URL="${GFF_URL_ARG}" && \
+    # Definir variables internas con las URLs correctas y verificadas
+    DB_NAME="Lbraziliensis_2019_manual" && \
+    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta" && \
+    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff" && \
     GENOME_PATH="/opt/db/genome.fasta" && \
     # Encontrar la ruta de SnpEff dinamicamente
     SNPEFF_CONFIG_FILE=$(find /opt/conda/share -name snpEff.config) && \
@@ -67,8 +62,8 @@ RUN \
     \
     # Anadir nuestra base de datos personalizada a la configuracion de SnpEff
     echo "" >> "${SNPEFF_CONFIG_FILE}" && \
-    echo "# Base de datos manual de L. braziliensis (proporcionada por el usuario)" >> "${SNPEFF_CONFIG_FILE}" && \
-    echo "${DB_NAME}.genome : Leishmania braziliensis (custom)" >> "${SNPEFF_CONFIG_FILE}" && \
+    echo "# Base de datos manual para L. braziliensis 2019" >> "${SNPEFF_CONFIG_FILE}" && \
+    echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> "${SNPEFF_CONFIG_FILE}" && \
     \
     # Construir la base de datos de SnpEff
     snpEff build -gff3 -v "${DB_NAME}" -noCheckCds -noCheckProtein
