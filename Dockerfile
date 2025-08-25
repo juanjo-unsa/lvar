@@ -1,30 +1,14 @@
 # ==============================================================================
-# Dockerfile para LVAR (Versión Final y Autocontenida)
+# Dockerfile para LVAR (Versión Final Definitiva, Corregida)
 # ==============================================================================
 
-# Usar una base limpia de Debian (stable) para asegurar la disponibilidad de utilidades basicas.
-FROM debian:stable
+# Usar Mambaforge para una instalación de Conda limpia y rápida.
+FROM condaforge/mambaforge:latest
 
-# --- Metadata ---
 LABEL maintainer="Juanjo <tu.email@ejemplo.com>"
 LABEL description="Entorno completo para el pipeline LVAR con SnpEff y bcftools."
 
-# --- Instalar dependencias del sistema, incluyendo `less`. ---
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    build-essential \
-    procps \
-    less \
-    ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-
-# --- Instalar Mambaforge (gestor de paquetes) ---
-RUN wget --quiet --no-check-certificate https://github.com/conda-forge/miniforge/releases/download/24.1.2-0/Mambaforge-24.1.2-0-Linux-x86_64.sh -O mambaforge.sh && \
-    bash mambaforge.sh -b -p /opt/conda && \
-    rm mambaforge.sh
-ENV PATH /opt/conda/bin:$PATH
-
-# --- Instalar todas las herramientas bioinformaticas. ---
+# Instalar todas las herramientas bioinformáticas necesarias.
 RUN mamba install -n base -c conda-forge -c bioconda -y \
     snakemake \
     fastqc \
@@ -34,39 +18,38 @@ RUN mamba install -n base -c conda-forge -c bioconda -y \
     samtools \
     bcftools \
     gatk4 \
-    snpeff && \
+    snpeff \
+    wget && \
     mamba clean --all -y
 
-# --- Construir manualmente la base de datos de SnpEff. ---
+# Construir manualmente la base de datos de SnpEff para máxima consistencia.
 RUN \
-    # Definir variables internas con las URLs correctas y verificadas
-    DB_NAME="Tritrypdb_Lbraziliensis_reference" && \
-    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_Genome.fasta" && \
-    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904.gff" && \
+    # Definir variables
+    DB_NAME="Lbraziliensis_custom_db" && \
+    FASTA_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/fasta/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019_Genome.fasta" && \
+    GFF_URL="https://tritrypdb.org/common/downloads/Current_Release/LbraziliensisMHOMBR75M2904_2019/gff/data/TriTrypDB-68_LbraziliensisMHOMBR75M2904_2019.gff" && \
     GENOME_PATH="/opt/db/genome.fasta" && \
-    # Encontrar la ruta de SnpEff dinamicamente
     SNPEFF_CONFIG_FILE=$(find /opt/conda/share -name snpEff.config) && \
-    SNPEFF_DIR=$(dirname "${SNPEFF_CONFIG_FILE}") && \
-    SNPEFF_DATA_DIR="${SNPEFF_DIR}/data" && \
+    SNPEFF_DATA_DIR=$(dirname "${SNPEFF_CONFIG_FILE}")/data && \
     \
     # Crear directorios
     mkdir -p "${SNPEFF_DATA_DIR}/${DB_NAME}" && \
     mkdir -p /opt/db && \
     \
-    # Descargar los archivos de referencia de TriTrypDB
+    # Descargar los archivos de referencia
     wget -O "${SNPEFF_DATA_DIR}/${DB_NAME}/genes.gff" "${GFF_URL}" && \
     wget -O "${GENOME_PATH}" "${FASTA_URL}" && \
     \
     # Preparar archivos para SnpEff
     cp "${GENOME_PATH}" "${SNPEFF_DATA_DIR}/${DB_NAME}/sequences.fa" && \
     \
-    # Anadir nuestra base de datos personalizada a la configuracion de SnpEff
+    # Añadir nuestra base de datos personalizada a la configuración
     echo "" >> "${SNPEFF_CONFIG_FILE}" && \
     echo "# Base de datos manual para L. braziliensis 2019" >> "${SNPEFF_CONFIG_FILE}" && \
-    echo "${DB_NAME}.genome : Leishmania braziliensis 2019 (manual)" >> "${SNPEFF_CONFIG_FILE}" && \
+    echo "${DB_NAME}.genome : Leishmania braziliensis (custom)" >> "${SNPEFF_CONFIG_FILE}" && \
     \
     # Construir la base de datos de SnpEff
-    snpEff build -gff3 -v "${DB_NAME}" -noCheckCds -noCheckProtein
+    snpEff build -gff3 -v ${DB_NAME} -noCheckCds -noCheckProtein
 
 # Configurar el entorno de trabajo y el punto de entrada para Snakemake.
 WORKDIR /pipeline
