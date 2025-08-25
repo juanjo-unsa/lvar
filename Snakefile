@@ -4,11 +4,8 @@ import pandas as pd
 configfile: "config/config.yaml"
 SAMPLES = pd.read_csv(config['samples'], sep='\t').set_index('sample', drop=False)
 
-# Ruta al genoma inmutable DENTRO del contenedor (solo lectura)
 REF_GENOME_CONTAINER_PATH = "/opt/db/genome.fasta"
-# Ruta a nuestra copia local de la referencia y sus indices (lectura/escritura)
 REF_GENOME_LOCAL = "results/reference/genome.fasta"
-# Nombre de la DB de SnpEff
 SNPEFF_DB = "Lbraziliensis_custom_db"
 
 # --- Regla Final ---
@@ -104,13 +101,21 @@ rule haplotype_caller:
 
 # --- Anotacion ---
 rule snpeff_annotate:
-    input: vcf="results/variants/{sample}.vcf.gz"
+    input:
+        vcf="results/variants/{sample}.vcf.gz"
     output:
         vcf="results/annotated/{sample}.ann.vcf",
         html="results/annotated/{sample}.snpeff.html"
-    params: db=SNPEFF_DB
+    params:
+        db=SNPEFF_DB,
+        java_opts="-Xmx8g",
+        # Ruta explicita al archivo de configuracion dentro del contenedor.
+        # Esto soluciona el error 'Property ... not found'.
+        config_file="/opt/conda/share/snpeff-5.2-1/snpEff.config"
     log: "results/logs/snpeff/{sample}.log"
-    shell: "snpEff ann -v {params.db} {input.vcf} > {output.vcf} -stats {output.html} 2> {log}"
+    shell:
+        # Añadimos el flag -c para especificar el archivo de configuracion.
+        "snpEff {params.java_opts} ann -c {params.config_file} -v {params.db} {input.vcf} > {output.vcf} -stats {output.html} 2> {log}"
 
 # --- Analisis Comparativo Final ---
 rule bgzip_and_tabix:
